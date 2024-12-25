@@ -1,0 +1,9 @@
+name: ZombieTag
+version: 1.0
+main: com.jamplifier.ZombieTag
+api-version: 1.21
+description: A Zombie Tag plugin for FriendlySMP
+commands:
+  zombietag:
+    description: Main command for Zombie Tag.
+    usage: /zombietag
