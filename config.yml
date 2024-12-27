@@ -1,15 +1,15 @@
+
+PlayerNeeded: 2
+MaxPlayers: 20
+
 LobbySpawn:
   world: world
   X: 0
   Y: 0
   Z: 0
+
 GameSpawn:
   world: world
-  X: 0
-  Y: 0
-  Z: 0
-LobbySign:
-  world: ""
   X: 0
   Y: 0
   Z: 0
