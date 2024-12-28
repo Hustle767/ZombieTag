@@ -24,6 +24,7 @@ public class MainClass extends JavaPlugin {
 	    
 	    // Register the events
 	    getServer().getPluginManager().registerEvents(new PlayerManager(null, false, false), this);
+	    getServer().getPluginManager().registerEvents(gameManager, this);
 	    
 	    loadConfig();
 	    
@@ -45,4 +46,8 @@ public class MainClass extends JavaPlugin {
     public void instanceClasses() {
     	gameManager = new GameManager();
     }
+    public GameManager getGameManager() {
+        return gameManager;
+    }
+
 }

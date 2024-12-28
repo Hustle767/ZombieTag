@@ -46,17 +46,6 @@ public class PlayerManager implements Listener {
     public void setIsdead(boolean isdead) {
         this.isdead = isdead;
     }
-
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        UUID playerUUID = event.getPlayer().getUniqueId();
-
-        // Remove the player from the playermanager map
-        if (plugin.playermanager.containsKey(playerUUID)) {
-            plugin.playermanager.remove(playerUUID);
-            plugin.getLogger().info("Removed player " + event.getPlayer().getName() + " from the playermanager.");
-        }
-    }
   
 
 }

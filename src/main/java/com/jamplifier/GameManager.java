@@ -24,6 +24,8 @@ public class GameManager implements Listener {
     private int playerNeeded = plugin.getConfig().getInt("PlayerNeeded", 2); // Retrieve from config
     private boolean isStarted = false;
     private boolean gameInProgress = false; // Track game status
+    private BukkitRunnable countdownTask = null;
+
 
     private List<Player> lobbyPlayers = new ArrayList<>();
     Location lobbySpawn;
@@ -78,87 +80,99 @@ public class GameManager implements Listener {
 
 
 
-    // Start the game (teleport all players to the game spawn)
     public void gameStart() {
         // Ensure the game only starts once
         if (isStarted) {
+            Bukkit.getLogger().info("Game has already started.");
             return;
         }
 
-        // Set the game as started
         isStarted = true;
+        Bukkit.getLogger().info("gameStart() has been called.");
 
-        // Example: Retrieve the game spawn location from the config
+        // Retrieve the game spawn location from the config
         double x = plugin.getConfig().getDouble("GameSpawn.X");
         double y = plugin.getConfig().getDouble("GameSpawn.Y");
         double z = plugin.getConfig().getDouble("GameSpawn.Z");
         String worldName = plugin.getConfig().getString("GameSpawn.world");
+
+        Bukkit.getLogger().info("GameSpawn: World=" + worldName + ", X=" + x + ", Y=" + y + ", Z=" + z);
 
         if (worldName == null || worldName.isEmpty()) {
             Bukkit.getLogger().severe("Game spawn world is not set in the config!");
             return;
         }
 
-        // Ensure the world exists and is loaded
         World world = plugin.getServer().getWorld(worldName);
         if (world == null) {
             Bukkit.getLogger().severe("The world for the game spawn does not exist: " + worldName);
             return;
         }
 
-        // Load the world and ensure the chunk is loaded
-        world.setAutoSave(false); // Disable auto-saving to avoid issues while teleporting players
-        world.getChunkAt(new Location(world, x, y, z)).load();
-
-        // Create a location object
         Location gameSpawn = new Location(world, x, y, z);
+        Bukkit.getLogger().info("Game spawn location created: " + gameSpawn);
 
-        // Check if the location is valid
-        if (gameSpawn == null || !gameSpawn.getChunk().isLoaded()) {
-            Bukkit.getLogger().severe("The game spawn location is invalid or the chunk is not loaded.");
-            return;
-        }
+        // Iterate through all players in the playermanager
+        for (UUID playerUUID : plugin.playermanager.keySet()) {
+            Player player = Bukkit.getPlayer(playerUUID); // Get the player by UUID
+            if (player == null) {
+                Bukkit.getLogger().info("Player with UUID " + playerUUID + " is not online. Skipping.");
+                continue;
+            }
 
-        // Teleport all players in the game to the game spawn
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (plugin.playermanager.containsKey(player.getUniqueId())) {
-                PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
-                if (playerData.isIngame()) {
-                    player.teleport(gameSpawn); // Teleport player to the game spawn location
-                    Bukkit.getLogger().info(player.getName() + " has been teleported to the game spawn.");
-                }
+            PlayerManager playerData = plugin.playermanager.get(playerUUID);
+            if (playerData == null) {
+                Bukkit.getLogger().info("No PlayerManager data found for " + player.getName() + ". Skipping.");
+                continue;
+            }
+
+            // Transition players in the lobby to "ingame" state and teleport them
+            if (!playerData.isIngame() && !playerData.isIsdead()) {
+                playerData.setIngame(true); // Update the state to "ingame"
+                plugin.playermanager.put(playerUUID, playerData); // Save the updated data
+                player.teleport(gameSpawn); // Teleport to game spawn
+                Bukkit.getLogger().info("Teleported player " + player.getName() + " to the game spawn.");
+            } else {
+                Bukkit.getLogger().info("Player " + player.getName() + " is already ingame or dead. Skipping.");
             }
         }
 
-        // Additional game start logic here (e.g., setting zombies, survivors, etc.)
+        // Announce the game start
         Bukkit.broadcastMessage("§aThe game has started!");
     }
+
 
 
     // Lobby countdown logic
     public void lobbyCountdown() {
         int countdownTime = 10; // Set your countdown duration
 
-        // Use BukkitRunnable instead of Runnable to access cancel()
-        new BukkitRunnable() {
+        countdownTask = new BukkitRunnable() {
             int secondsLeft = countdownTime;
 
             @Override
             public void run() {
+                if (lobbyPlayers.size() < playerNeeded) {
+                    Bukkit.broadcastMessage("§cNot enough players! Countdown canceled.");
+                    cancelCountdown(); // Cancel the countdown if players leave
+                    return;
+                }
+
                 if (secondsLeft > 0) {
                     Bukkit.broadcastMessage("§eStarting in " + secondsLeft + " seconds...");
                     secondsLeft--;
                 } else {
-                    // Make sure the game only starts once
                     if (!isStarted) {
-                        Bukkit.broadcastMessage("§aThe game has started!");
-                        gameStart();  // Call the gameStart method when the countdown finishes
+                        gameStart();
                     }
-                    cancel(); // Cancel the countdown task to prevent it from running further
+                    cancel(); // End the countdown
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // 0L delay, 20L ticks for 1 second interval
+        };
+
+        countdownTask.runTaskTimer(plugin, 0L, 20L); // 0L delay, 20L ticks for 1-second intervals
     }
+
 
 
     // Update the lobby status (e.g., when players join or leave)
@@ -167,6 +181,46 @@ public class GameManager implements Listener {
         int maxPlayers = plugin.getConfig().getInt("MaxPlayers", 20); // Default to 20 if not set
         for (Player lobbyPlayer : lobbyPlayers) {
             lobbyPlayer.sendMessage("§7There are now " + currentPlayers + " out of " + maxPlayers + " players in the lobby.");
+        }
+    }
+
+
+    public void removePlayerFromLobby(Player player) {
+        // Check if the player is in the lobby
+        if (lobbyPlayers.contains(player)) {
+            // Remove the player from the lobby
+            lobbyPlayers.remove(player);
+
+            // Notify the player
+            player.sendMessage("§cYou have left the lobby!");
+
+            // Update the lobby status
+            updateLobbyStatus();
+            
+            // Optionally teleport the player elsewhere (e.g., spawn or another location)
+            /*
+            Location spawnLocation = new Location(Bukkit.getWorld("world"), 0, 64, 0); // Replace with your spawn location
+            player.teleport(spawnLocation);
+            */
+        } else {
+            player.sendMessage("§cYou are not in the lobby!");
+        }
+    }
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID playerUUID = event.getPlayer().getUniqueId();
+
+        // Remove the player from the playermanager map
+        if (plugin.playermanager.containsKey(playerUUID)) {
+            plugin.playermanager.remove(playerUUID);
+            plugin.getLogger().info("Removed player " + event.getPlayer().getName() + " from the playermanager.");
+            plugin.getGameManager().removePlayerFromLobby(event.getPlayer());
+        }
+    }
+    public void cancelCountdown() {
+        if (countdownTask != null) {
+            countdownTask.cancel();
+            countdownTask = null; // Clear the reference
         }
     }
     public void resetGame() {
@@ -190,5 +244,8 @@ public class GameManager implements Listener {
     public void endGame() {
         gameInProgress = false;
     }
+    
+
+
 }
 

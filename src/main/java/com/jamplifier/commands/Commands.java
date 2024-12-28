@@ -224,41 +224,17 @@ public class Commands implements CommandExecutor {
             return true;
         }
 
-        // Remove the player from the lobby
+        // Remove the player from the playermanager map
         plugin.playermanager.remove(player.getUniqueId());
-        player.sendMessage("§aYou have left the lobby!");
 
-        // Placeholder for teleporting the player elsewhere if needed
-        /*
-        double x = 0; // Replace with desired X coordinate
-        double y = 64; // Replace with desired Y coordinate
-        double z = 0; // Replace with desired Z coordinate
-        String worldName = "world"; // Replace with desired world name
-
-        if (plugin.getServer().getWorld(worldName) != null) {
-            player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
-            player.sendMessage("§aYou have been teleported to a safe location!");
-        } else {
-            player.sendMessage("§cTeleport location is not set correctly.");
-        }
-        */
-
-        // Send the updated lobby status to players in the lobby
-        int currentPlayers = plugin.playermanager.size();
-        int maxPlayers = plugin.getConfig().getInt("MaxPlayers", 20); // Default to 20 if not set
-        for (UUID uuid : plugin.playermanager.keySet()) {
-            Player lobbyPlayer = plugin.getServer().getPlayer(uuid);
-            if (lobbyPlayer != null) {
-                lobbyPlayer.sendMessage("§7There are now " + currentPlayers + " out of " + maxPlayers + " players in the lobby.");
-            }
-        }
+        // Access GameManager through the plugin and remove the player from the lobby
+        plugin.getGameManager().removePlayerFromLobby(player);
 
         return true;
     }
 
 
 
-    
 }
 
 
