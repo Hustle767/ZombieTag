@@ -62,7 +62,6 @@ public class GameManager implements Listener {
         // Add player to the lobby
         lobbyPlayers.add(player);
         Bukkit.broadcastMessage("§a" + player.getName() + " has joined the lobby! (" + lobbyPlayers.size() + "/" + maxPlayers + ")");
-        player.sendMessage("§aWaiting for more players...");
 
         // Debug logs to check the condition evaluation
         Bukkit.getLogger().info("Current lobby size: " + lobbyPlayers.size() + "/" + maxPlayers);
@@ -112,7 +111,10 @@ public class GameManager implements Listener {
         Location gameSpawn = new Location(world, x, y, z);
         Bukkit.getLogger().info("Game spawn location created: " + gameSpawn);
 
-        // Iterate through all players in the playermanager
+        // Create a list for players that will be in the game
+        List<Player> gamePlayers = new ArrayList<>();
+
+        // Iterate through all players in the playermanager to handle their state and teleportation
         for (UUID playerUUID : plugin.playermanager.keySet()) {
             Player player = Bukkit.getPlayer(playerUUID); // Get the player by UUID
             if (player == null) {
@@ -132,14 +134,22 @@ public class GameManager implements Listener {
                 plugin.playermanager.put(playerUUID, playerData); // Save the updated data
                 player.teleport(gameSpawn); // Teleport to game spawn
                 Bukkit.getLogger().info("Teleported player " + player.getName() + " to the game spawn.");
+
+                // Add player to the gamePlayers list
+                gamePlayers.add(player);
             } else {
                 Bukkit.getLogger().info("Player " + player.getName() + " is already ingame or dead. Skipping.");
             }
         }
 
+        // Update your game players list after the game starts
+        plugin.gamePlayers = gamePlayers; // Save this list to your plugin's state (ensure gamePlayers is defined)
+
         // Announce the game start
         Bukkit.broadcastMessage("§aThe game has started!");
+        gameTimer();
     }
+
 
 
 
@@ -230,6 +240,35 @@ public class GameManager implements Listener {
         lobbyPlayers.clear();
         Bukkit.broadcastMessage("§cThe game has ended. Waiting for players to join for the next round.");
     }
+    public void gameTimer() {
+        int countdownTime = 60; // Set the countdown duration to 60 seconds (1 minute)
+        int gracePeriodTime = 50; // Set a grace period (e.g., 50 seconds)
+        
+        // Add a countdown for the grace period (which delays until 10 seconds left)
+        countdownTask = new BukkitRunnable() {
+            int timeLeft = countdownTime;
+
+            @Override
+            public void run() {
+                if (timeLeft > gracePeriodTime) {
+                    // This is the grace period, where we wait for the 10-second mark
+                    timeLeft--;
+                } else if (timeLeft <= gracePeriodTime && timeLeft > 0) {
+                    // Once 10 seconds are left, start showing the countdown
+                    Bukkit.broadcastMessage("§eTime left: " + timeLeft + " seconds.");
+                    timeLeft--; // Decrease the time left
+                } else {
+                    // Time is up, end the game
+                    Bukkit.broadcastMessage("§cThe game time has ended!");
+                    endGame(); // Call the endGame function
+                    cancel(); // Stop the timer
+                }
+            }
+        };
+
+        countdownTask.runTaskTimer(plugin, 0L, 20L); // 0L delay, 20L ticks for 1-second intervals
+    }
+
 
 
     // Methods for checking and changing game state
@@ -237,15 +276,30 @@ public class GameManager implements Listener {
         return gameInProgress;
     }
 
-    public void startGame() {
-        gameInProgress = true;
-    }
-
     public void endGame() {
-        gameInProgress = false;
+        // Example of simple end game logic
+    	gameInProgress = false;
+        Bukkit.broadcastMessage("§aThe game has ended!");
+        
+        // Teleport all players to the lobby (or you can customize as needed)
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            // You could check if the player is in the game, or add custom logic here
+            double x = plugin.getConfig().getDouble("LobbySpawn.X");
+            double y = plugin.getConfig().getDouble("LobbySpawn.Y");
+            double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+            String worldName = plugin.getConfig().getString("LobbySpawn.world");
+
+            if (worldName != null && !worldName.isEmpty()) {
+                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+            }
+        }
+
+        // Reset the game state or declare a winner (you can customize this)
+        // Reset game flags, player data, etc.
+        isStarted = false; // Mark the game as not started
+        plugin.gamePlayers.clear(); // Clear the game players list
     }
     
-
 
 }
 

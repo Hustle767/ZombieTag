@@ -1,9 +1,12 @@
 package com.jamplifier;
 
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.jamplifier.PlayerData.PlayerManager;
@@ -14,6 +17,8 @@ public class MainClass extends JavaPlugin {
 	
 	
 	public HashMap<UUID,PlayerManager> playermanager = new HashMap<UUID,PlayerManager>();
+	public List<Player> gamePlayers = new ArrayList<>();
+
 	public GameManager gameManager;
 	@Override
 	public void onEnable() {

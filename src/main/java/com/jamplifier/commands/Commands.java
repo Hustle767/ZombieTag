@@ -194,9 +194,6 @@ public class Commands implements CommandExecutor {
             player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
             player.sendMessage("§aYou have been teleported to the lobby!");
 
-            // Send the player an update about the lobby status
-            player.sendMessage("§7You are player #" + (currentPlayers + 1) + " out of " + maxPlayers + " in the lobby.");
-            player.sendMessage("§7Waiting for more players to start the game...");
 
             // Call the lobbyWait function to handle the countdown logic
             plugin.gameManager.lobbyWait(player); // Ensure this method is called to handle the countdown logic.
