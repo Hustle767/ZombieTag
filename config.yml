@@ -1,13 +1,23 @@
+# Zombie Tag Config
+# By Jamplifier
+
 
 PlayerNeeded: 2
 MaxPlayers: 20
-
+GracePeriod: 10 # Seconds during which zombies cannot tag
+ZombieSpeedBoost: true # Zombies get a speed boost
+SurvivorReward:
+  Enabled: true
+  Item: DIAMOND
+  Quantity: 1
+Messages:
+  ZombieWin: "§cZombies win! All players have been tagged."
+  SurvivorWin: "§aSurvivors win! You escaped the zombie apocalypse!"
 LobbySpawn:
   world: world
   X: 0
   Y: 0
   Z: 0
-
 GameSpawn:
   world: world
   X: 0

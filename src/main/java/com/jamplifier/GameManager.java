@@ -17,6 +17,7 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import com.jamplifier.PlayerData.PlayerManager;
@@ -89,7 +90,7 @@ public class GameManager implements Listener {
         isStarted = true;
         gameInProgress = true;
 
-        // Retrieve the game spawn location
+        // Retrieve game spawn location from config
         double x = plugin.getConfig().getDouble("GameSpawn.X");
         double y = plugin.getConfig().getDouble("GameSpawn.Y");
         double z = plugin.getConfig().getDouble("GameSpawn.Z");
@@ -110,37 +111,39 @@ public class GameManager implements Listener {
 
         List<Player> gamePlayers = new ArrayList<>(lobbyPlayers);
 
-        // Randomly select the initial zombie
-     // Inside gameStart()
+        // Select and prepare the initial zombie
         Player initialZombie = gamePlayers.get((int) (Math.random() * gamePlayers.size()));
         PlayerManager zombieData = plugin.playermanager.get(initialZombie.getUniqueId());
         if (zombieData != null) {
             zombieData.setIngame(true);
-            zombieData.setIsdead(true); // Mark as zombie
+            zombieData.setIsdead(true);
 
-            // Save the current helmet
+            // Save and replace the current helmet with a pumpkin
             zombieData.setOriginalHelmet(initialZombie.getInventory().getHelmet());
-
-            // Equip the pumpkin helmet
             initialZombie.getInventory().setHelmet(new ItemStack(Material.PUMPKIN));
-            initialZombie.sendMessage("§cYou are the zombie! Tag other players to turn them into zombies.");
-            
-            // Teleport the zombie to the game spawn
+
             initialZombie.teleport(gameSpawn);
+            initialZombie.sendMessage("§cYou are the zombie! A grace period is active. Wait to start tagging!");
+
+            startGracePeriod(initialZombie);
         }
 
-
-        // Update all other players
         for (Player player : gamePlayers) {
-            if (player.equals(initialZombie)) continue; // Zombie already teleported
+            if (player.equals(initialZombie)) continue;
             player.teleport(gameSpawn);
-            plugin.playermanager.get(player.getUniqueId()).setIngame(true);
+
+            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+            if (playerData != null) {
+                playerData.setIngame(true);
+            }
         }
 
-        plugin.gamePlayers = gamePlayers; // Save game players
+        plugin.gamePlayers = gamePlayers;
         Bukkit.broadcastMessage("§aThe game has started! Avoid being tagged by the zombie.");
         gameTimer();
     }
+
+
 
 
 
@@ -272,25 +275,14 @@ public class GameManager implements Listener {
 
     public void endGame() {
         gameInProgress = false;
+        Bukkit.broadcastMessage("§aThe game has ended!");
 
-        // Count survivors
-        long survivorCount = plugin.playermanager.values().stream()
-                .filter(data -> data.isIngame() && !data.isIsdead())
-                .count();
-
-        // Announce the winner
-        if (survivorCount > 0) {
-            Bukkit.broadcastMessage("§aSurvivors win! " + survivorCount + " player(s) survived the zombie apocalypse.");
-        } else {
-            Bukkit.broadcastMessage("§cZombies win! All players have been tagged.");
-        }
-
-        // Retrieve lobby spawn location
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
+        // Iterate through all players in the playermanager
         for (UUID playerId : plugin.playermanager.keySet()) {
             PlayerManager playerData = plugin.playermanager.get(playerId);
             if (playerData != null && playerData.isIngame()) {
@@ -306,8 +298,6 @@ public class GameManager implements Listener {
                         if (world != null) {
                             player.teleport(new Location(world, x, y, z));
                             player.sendMessage("§aYou have been teleported to the lobby.");
-                        } else {
-                            player.sendMessage("§cThe lobby world does not exist.");
                         }
                     }
                 }
@@ -356,6 +346,7 @@ public class GameManager implements Listener {
         }
     }
 
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
@@ -374,6 +365,24 @@ public class GameManager implements Listener {
             }
         }
     }
+    private void startGracePeriod(Player initialZombie) {
+        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
+
+        Bukkit.broadcastMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
+
+        // Prevent tagging during grace period
+        initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
+
+        // Schedule the end of the grace period
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                initialZombie.removeMetadata("gracePeriod", plugin);
+                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
+            }
+        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
+    }
+
 
 
 }
