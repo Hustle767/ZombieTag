@@ -38,6 +38,17 @@ public class Commands implements CommandExecutor {
             }
             return true;
         }
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!player.hasPermission("zombietag.admin")) {
+                player.sendMessage("§cYou do not have permission to use this command!");
+                return true;
+            }
+
+            plugin.reloadConfig();
+            plugin.getGameManager().setupGame(); // Ensure spawns are reloaded
+            player.sendMessage("§aZombieTag configuration reloaded!");
+            return true;
+        }
      // Lobby Join command
         if (!player.hasPermission("zombietag.player")) {
             player.sendMessage("§cYou do not have permission to use this command!");
@@ -229,5 +240,18 @@ public class Commands implements CommandExecutor {
 
         player.sendMessage("§aYou have successfully left the lobby.");
         return true;
+
     }
+    private boolean handleReload(Player player) {
+        if (!player.hasPermission("zombietag.admin")) {
+            player.sendMessage("§cYou do not have permission to use this command!");
+            return true;
+        }
+
+        plugin.reloadConfig();
+        plugin.getGameManager().setupGame(); // Reload spawn locations and other settings
+        player.sendMessage("§aZombieTag configuration reloaded!");
+        return true;
+    }
+
 }
