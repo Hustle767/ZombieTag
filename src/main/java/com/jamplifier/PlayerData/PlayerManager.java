@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
 
 import com.jamplifier.MainClass;
 
@@ -46,6 +47,16 @@ public class PlayerManager implements Listener {
     public void setIsdead(boolean isdead) {
         this.isdead = isdead;
     }
+    private ItemStack originalHelmet;
+
+    public ItemStack getOriginalHelmet() {
+        return originalHelmet;
+    }
+
+    public void setOriginalHelmet(ItemStack originalHelmet) {
+        this.originalHelmet = originalHelmet;
+    }
+
   
 
 }

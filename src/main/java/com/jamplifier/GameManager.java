@@ -12,6 +12,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -115,12 +117,18 @@ public class GameManager implements Listener {
         if (zombieData != null) {
             zombieData.setIngame(true);
             zombieData.setIsdead(true); // Mark as zombie
-            initialZombie.getInventory().setHelmet(new ItemStack(Material.PUMPKIN)); // Equip pumpkin
-            initialZombie.sendMessage("§cYou are the zombie! Tag other players to turn them into zombies.");
 
+            // Save the current helmet
+            zombieData.setOriginalHelmet(initialZombie.getInventory().getHelmet());
+
+            // Equip the pumpkin helmet
+            initialZombie.getInventory().setHelmet(new ItemStack(Material.PUMPKIN));
+            initialZombie.sendMessage("§cYou are the zombie! Tag other players to turn them into zombies.");
+            
             // Teleport the zombie to the game spawn
             initialZombie.teleport(gameSpawn);
         }
+
 
         // Update all other players
         for (Player player : gamePlayers) {
@@ -264,31 +272,47 @@ public class GameManager implements Listener {
 
     public void endGame() {
         gameInProgress = false;
+        Bukkit.broadcastMessage("§aThe game has ended!");
 
-        long survivors = plugin.playermanager.values().stream().filter(data -> data.isIngame() && !data.isIsdead()).count();
-        if (survivors > 0) {
-            Bukkit.broadcastMessage("§aSurvivors win! " + survivors + " players survived the zombie apocalypse.");
-        } else {
-            Bukkit.broadcastMessage("§cZombies win! Everyone has been tagged.");
-        }
+        double x = plugin.getConfig().getDouble("LobbySpawn.X");
+        double y = plugin.getConfig().getDouble("LobbySpawn.Y");
+        double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+        String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
-        // Teleport all players to the lobby
+        // Iterate through all players in the playermanager
         for (UUID playerId : plugin.playermanager.keySet()) {
-            Player player = Bukkit.getPlayer(playerId);
-            if (player != null) {
-                double x = plugin.getConfig().getDouble("LobbySpawn.X");
-                double y = plugin.getConfig().getDouble("LobbySpawn.Y");
-                double z = plugin.getConfig().getDouble("LobbySpawn.Z");
-                String worldName = plugin.getConfig().getString("LobbySpawn.world");
+            PlayerManager playerData = plugin.playermanager.get(playerId);
+            if (playerData != null && playerData.isIngame()) {
+                Player player = Bukkit.getPlayer(playerId);
+                if (player != null) {
+                    // Restore original helmet
+                    player.getInventory().setHelmet(playerData.getOriginalHelmet());
+                    playerData.setOriginalHelmet(null);
 
-                if (worldName != null && !worldName.isEmpty()) {
-                    player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+                    // Teleport player to lobby
+                    if (worldName != null && !worldName.isEmpty()) {
+                        World world = plugin.getServer().getWorld(worldName);
+                        if (world != null) {
+                            player.teleport(new Location(world, x, y, z));
+                            player.sendMessage("§aYou have been teleported to the lobby.");
+                        }
+                    }
                 }
+                // Reset player state
+                playerData.setIngame(false);
+                playerData.setIsdead(false);
             }
         }
 
-        resetGame();
+        // Clear game state
+        isStarted = false;
+        plugin.gamePlayers.clear();
+        lobbyPlayers.clear(); // Ensure lobby is emptied
+        plugin.playermanager.clear(); // Clear all player data
     }
+
+
+
     @EventHandler
     public void onPlayerTag(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player) || !(event.getDamager() instanceof Player)) return;
@@ -306,12 +330,38 @@ public class GameManager implements Listener {
         // Check if the tagging player is a zombie
         if (taggingData.isIsdead()) { // Tagging player is a zombie
             if (!taggedData.isIsdead()) { // Tagged player is not yet a zombie
-                taggedData.setIsdead(true); // Mark as zombie
-                taggedPlayer.getInventory().setHelmet(new ItemStack(Material.PUMPKIN)); // Equip pumpkin
+                // Save the original helmet before tagging
+                if (taggedPlayer.getInventory().getHelmet() != null) {
+                    taggedData.setOriginalHelmet(taggedPlayer.getInventory().getHelmet());
+                }
+
+                // Mark the player as a zombie and equip the pumpkin
+                taggedData.setIsdead(true);
+                taggedPlayer.getInventory().setHelmet(new ItemStack(Material.PUMPKIN));
                 Bukkit.broadcastMessage("§c" + taggedPlayer.getName() + " has been tagged and turned into a zombie!");
             }
         }
     }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+
+        Player player = (Player) event.getWhoClicked();
+        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+
+        // Check if the player is a zombie and in-game
+        if (playerData != null && playerData.isIngame() && playerData.isIsdead()) {
+            if (event.getSlotType() == InventoryType.SlotType.ARMOR && event.getSlot() == 39) { // Helmet slot
+                ItemStack currentItem = event.getCurrentItem();
+                if (currentItem != null && currentItem.getType() == Material.PUMPKIN) {
+                    event.setCancelled(true); // Prevent removing the pumpkin
+                    player.sendMessage("§cYou cannot remove your helmet while playing!");
+                }
+            }
+        }
+    }
+
 
 }
 
