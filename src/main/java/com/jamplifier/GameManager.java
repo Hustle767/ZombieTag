@@ -63,10 +63,6 @@ public class GameManager implements Listener {
         lobbyPlayers.add(player);
         Bukkit.broadcastMessage("§a" + player.getName() + " has joined the lobby! (" + lobbyPlayers.size() + "/" + maxPlayers + ")");
 
-        // Debug logs to check the condition evaluation
-        Bukkit.getLogger().info("Current lobby size: " + lobbyPlayers.size() + "/" + maxPlayers);
-        Bukkit.getLogger().info("PlayerNeeded is set to: " + playerNeeded);
-
         // Start countdown if enough players have joined and the game isn't already started
         if (lobbyPlayers.size() >= playerNeeded && !isStarted) {
             Bukkit.broadcastMessage("§eEnough players! Starting countdown...");
@@ -75,6 +71,7 @@ public class GameManager implements Listener {
             Bukkit.broadcastMessage("§eWaiting for more players...");
         }
     }
+
 
 
 
@@ -241,10 +238,10 @@ public class GameManager implements Listener {
         Bukkit.broadcastMessage("§cThe game has ended. Waiting for players to join for the next round.");
     }
     public void gameTimer() {
-        int countdownTime = 60; // Set the countdown duration to 60 seconds (1 minute)
-        int gracePeriodTime = 50; // Set a grace period (e.g., 50 seconds)
+        int countdownTime = 20; // Set the countdown duration to 60 seconds (1 minute)
+        int gracePeriodTime = 10; // Set a grace period (e.g., 50 seconds)
         
-        // Add a countdown for the grace period (which delays until 10 seconds left)
+        // Add a countdown for the last 10 seconds of game
         countdownTask = new BukkitRunnable() {
             int timeLeft = countdownTime;
 
@@ -297,7 +294,7 @@ public class GameManager implements Listener {
         // Reset the game state or declare a winner (you can customize this)
         // Reset game flags, player data, etc.
         isStarted = false; // Mark the game as not started
-        plugin.gamePlayers.clear(); // Clear the game players list
+        plugin.playermanager.clear(); // Clear the game players list
     }
     
 

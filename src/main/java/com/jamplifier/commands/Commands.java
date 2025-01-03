@@ -177,12 +177,9 @@ public class Commands implements CommandExecutor {
             return true;
         }
 
-        // Remove any old player data (if needed)
-        plugin.playermanager.remove(player.getUniqueId());
-
-        // Create and add new player data
+        // Remove any old player data (if needed) and add them to the lobby
         PlayerManager playerData = new PlayerManager(player.getUniqueId(), false, false); // false: not in game, not dead
-        plugin.playermanager.put(player.getUniqueId(), playerData);
+        plugin.playermanager.put(player.getUniqueId(), playerData); // Add to playermanager (lobby)
 
         // Teleport player to the lobby spawn
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
@@ -193,7 +190,6 @@ public class Commands implements CommandExecutor {
         if (worldName != null && !worldName.isEmpty()) {
             player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
             player.sendMessage("§aYou have been teleported to the lobby!");
-
 
             // Call the lobbyWait function to handle the countdown logic
             plugin.gameManager.lobbyWait(player); // Ensure this method is called to handle the countdown logic.
@@ -206,29 +202,33 @@ public class Commands implements CommandExecutor {
 
 
 
+
     private boolean handleLeave(Player player) {
-        // Check if the player is in the lobby
+        // Check if the player is in the lobby or the game
         if (!plugin.playermanager.containsKey(player.getUniqueId())) {
-            player.sendMessage("§cYou are not currently in the lobby!");
+            player.sendMessage("§cYou are not currently in the lobby or game!");
             return true;
         }
 
         PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
 
-        // Ensure the player is not in a game
+        // Check if the player is in the game
         if (playerData.isIngame()) {
-            player.sendMessage("§cYou cannot leave the lobby because you are already in a game!");
+            player.sendMessage("§cYou are currently in a game! You must leave the game before you can leave the lobby.");
             return true;
         }
 
-        // Remove the player from the playermanager map
+        // Remove the player from the playermanager (lobby)
         plugin.playermanager.remove(player.getUniqueId());
 
-        // Access GameManager through the plugin and remove the player from the lobby
+        // Inform the GameManager to remove the player from the lobby
         plugin.getGameManager().removePlayerFromLobby(player);
+
+        player.sendMessage("§aYou have successfully left the lobby.");
 
         return true;
     }
+
 
 
 
