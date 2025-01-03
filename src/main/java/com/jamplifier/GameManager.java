@@ -6,12 +6,15 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import com.jamplifier.PlayerData.PlayerManager;
@@ -21,13 +24,12 @@ public class GameManager implements Listener {
     private MainClass plugin = MainClass.getPlugin(MainClass.class);
     
     private int lobbyCountdown = 10; // Countdown duration
-    private int playerNeeded = plugin.getConfig().getInt("PlayerNeeded", 2); // Retrieve from config
     private boolean isStarted = false;
     private boolean gameInProgress = false; // Track game status
     private BukkitRunnable countdownTask = null;
 
 
-    private List<Player> lobbyPlayers = new ArrayList<>();
+    public List<Player> lobbyPlayers = new ArrayList<>();
     Location lobbySpawn;
     Location gameSpawn;
     
@@ -64,7 +66,7 @@ public class GameManager implements Listener {
         Bukkit.broadcastMessage("§a" + player.getName() + " has joined the lobby! (" + lobbyPlayers.size() + "/" + maxPlayers + ")");
 
         // Start countdown if enough players have joined and the game isn't already started
-        if (lobbyPlayers.size() >= playerNeeded && !isStarted) {
+        if (lobbyPlayers.size() >= getPlayerNeeded() && !isStarted) {
             Bukkit.broadcastMessage("§eEnough players! Starting countdown...");
             lobbyCountdown(); // Call countdown function
         } else {
@@ -77,22 +79,19 @@ public class GameManager implements Listener {
 
 
     public void gameStart() {
-        // Ensure the game only starts once
         if (isStarted) {
             Bukkit.getLogger().info("Game has already started.");
             return;
         }
 
         isStarted = true;
-        Bukkit.getLogger().info("gameStart() has been called.");
+        gameInProgress = true;
 
-        // Retrieve the game spawn location from the config
+        // Retrieve the game spawn location
         double x = plugin.getConfig().getDouble("GameSpawn.X");
         double y = plugin.getConfig().getDouble("GameSpawn.Y");
         double z = plugin.getConfig().getDouble("GameSpawn.Z");
         String worldName = plugin.getConfig().getString("GameSpawn.world");
-
-        Bukkit.getLogger().info("GameSpawn: World=" + worldName + ", X=" + x + ", Y=" + y + ", Z=" + z);
 
         if (worldName == null || worldName.isEmpty()) {
             Bukkit.getLogger().severe("Game spawn world is not set in the config!");
@@ -106,44 +105,32 @@ public class GameManager implements Listener {
         }
 
         Location gameSpawn = new Location(world, x, y, z);
-        Bukkit.getLogger().info("Game spawn location created: " + gameSpawn);
 
-        // Create a list for players that will be in the game
-        List<Player> gamePlayers = new ArrayList<>();
+        List<Player> gamePlayers = new ArrayList<>(lobbyPlayers);
 
-        // Iterate through all players in the playermanager to handle their state and teleportation
-        for (UUID playerUUID : plugin.playermanager.keySet()) {
-            Player player = Bukkit.getPlayer(playerUUID); // Get the player by UUID
-            if (player == null) {
-                Bukkit.getLogger().info("Player with UUID " + playerUUID + " is not online. Skipping.");
-                continue;
-            }
+        // Randomly select the initial zombie
+     // Inside gameStart()
+        Player initialZombie = gamePlayers.get((int) (Math.random() * gamePlayers.size()));
+        PlayerManager zombieData = plugin.playermanager.get(initialZombie.getUniqueId());
+        if (zombieData != null) {
+            zombieData.setIngame(true);
+            zombieData.setIsdead(true); // Mark as zombie
+            initialZombie.getInventory().setHelmet(new ItemStack(Material.PUMPKIN)); // Equip pumpkin
+            initialZombie.sendMessage("§cYou are the zombie! Tag other players to turn them into zombies.");
 
-            PlayerManager playerData = plugin.playermanager.get(playerUUID);
-            if (playerData == null) {
-                Bukkit.getLogger().info("No PlayerManager data found for " + player.getName() + ". Skipping.");
-                continue;
-            }
-
-            // Transition players in the lobby to "ingame" state and teleport them
-            if (!playerData.isIngame() && !playerData.isIsdead()) {
-                playerData.setIngame(true); // Update the state to "ingame"
-                plugin.playermanager.put(playerUUID, playerData); // Save the updated data
-                player.teleport(gameSpawn); // Teleport to game spawn
-                Bukkit.getLogger().info("Teleported player " + player.getName() + " to the game spawn.");
-
-                // Add player to the gamePlayers list
-                gamePlayers.add(player);
-            } else {
-                Bukkit.getLogger().info("Player " + player.getName() + " is already ingame or dead. Skipping.");
-            }
+            // Teleport the zombie to the game spawn
+            initialZombie.teleport(gameSpawn);
         }
 
-        // Update your game players list after the game starts
-        plugin.gamePlayers = gamePlayers; // Save this list to your plugin's state (ensure gamePlayers is defined)
+        // Update all other players
+        for (Player player : gamePlayers) {
+            if (player.equals(initialZombie)) continue; // Zombie already teleported
+            player.teleport(gameSpawn);
+            plugin.playermanager.get(player.getUniqueId()).setIngame(true);
+        }
 
-        // Announce the game start
-        Bukkit.broadcastMessage("§aThe game has started!");
+        plugin.gamePlayers = gamePlayers; // Save game players
+        Bukkit.broadcastMessage("§aThe game has started! Avoid being tagged by the zombie.");
         gameTimer();
     }
 
@@ -152,16 +139,14 @@ public class GameManager implements Listener {
 
     // Lobby countdown logic
     public void lobbyCountdown() {
-        int countdownTime = 10; // Set your countdown duration
-
         countdownTask = new BukkitRunnable() {
-            int secondsLeft = countdownTime;
+            int secondsLeft = 10;
 
             @Override
             public void run() {
-                if (lobbyPlayers.size() < playerNeeded) {
+                if (lobbyPlayers.size() < getPlayerNeeded()) {
                     Bukkit.broadcastMessage("§cNot enough players! Countdown canceled.");
-                    cancelCountdown(); // Cancel the countdown if players leave
+                    cancelCountdown();
                     return;
                 }
 
@@ -169,17 +154,18 @@ public class GameManager implements Listener {
                     Bukkit.broadcastMessage("§eStarting in " + secondsLeft + " seconds...");
                     secondsLeft--;
                 } else {
-                    if (!isStarted) {
-                        gameStart();
-                    }
-                    cancel(); // End the countdown
+                    gameStart();
+                    cancel();
                 }
             }
         };
 
-        countdownTask.runTaskTimer(plugin, 0L, 20L); // 0L delay, 20L ticks for 1-second intervals
+        countdownTask.runTaskTimer(plugin, 0L, 20L);
     }
 
+    private int getPlayerNeeded() {
+        return plugin.getConfig().getInt("PlayerNeeded", 2);
+    }
 
 
     // Update the lobby status (e.g., when players join or leave)
@@ -238,32 +224,34 @@ public class GameManager implements Listener {
         Bukkit.broadcastMessage("§cThe game has ended. Waiting for players to join for the next round.");
     }
     public void gameTimer() {
-        int countdownTime = 20; // Set the countdown duration to 60 seconds (1 minute)
-        int gracePeriodTime = 10; // Set a grace period (e.g., 50 seconds)
-        
-        // Add a countdown for the last 10 seconds of game
+        int countdownTime = 20;
+
         countdownTask = new BukkitRunnable() {
             int timeLeft = countdownTime;
 
             @Override
             public void run() {
-                if (timeLeft > gracePeriodTime) {
-                    // This is the grace period, where we wait for the 10-second mark
+                if (plugin.gamePlayers.isEmpty()) {
+                    Bukkit.broadcastMessage("§cNo players left in the game. Ending the game.");
+                    endGame();
+                    cancel();
+                    return;
+                }
+
+                if (timeLeft > 0) {
+                    for (Player player : plugin.gamePlayers) {
+                        player.sendMessage("§eTime left: " + timeLeft + " seconds.");
+                    }
                     timeLeft--;
-                } else if (timeLeft <= gracePeriodTime && timeLeft > 0) {
-                    // Once 10 seconds are left, start showing the countdown
-                    Bukkit.broadcastMessage("§eTime left: " + timeLeft + " seconds.");
-                    timeLeft--; // Decrease the time left
                 } else {
-                    // Time is up, end the game
                     Bukkit.broadcastMessage("§cThe game time has ended!");
-                    endGame(); // Call the endGame function
-                    cancel(); // Stop the timer
+                    endGame();
+                    cancel();
                 }
             }
         };
 
-        countdownTask.runTaskTimer(plugin, 0L, 20L); // 0L delay, 20L ticks for 1-second intervals
+        countdownTask.runTaskTimer(plugin, 0L, 20L);
     }
 
 
@@ -272,30 +260,58 @@ public class GameManager implements Listener {
     public boolean isGameInProgress() {
         return gameInProgress;
     }
+    
 
     public void endGame() {
-        // Example of simple end game logic
-    	gameInProgress = false;
-        Bukkit.broadcastMessage("§aThe game has ended!");
-        
-        // Teleport all players to the lobby (or you can customize as needed)
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            // You could check if the player is in the game, or add custom logic here
-            double x = plugin.getConfig().getDouble("LobbySpawn.X");
-            double y = plugin.getConfig().getDouble("LobbySpawn.Y");
-            double z = plugin.getConfig().getDouble("LobbySpawn.Z");
-            String worldName = plugin.getConfig().getString("LobbySpawn.world");
+        gameInProgress = false;
 
-            if (worldName != null && !worldName.isEmpty()) {
-                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+        long survivors = plugin.playermanager.values().stream().filter(data -> data.isIngame() && !data.isIsdead()).count();
+        if (survivors > 0) {
+            Bukkit.broadcastMessage("§aSurvivors win! " + survivors + " players survived the zombie apocalypse.");
+        } else {
+            Bukkit.broadcastMessage("§cZombies win! Everyone has been tagged.");
+        }
+
+        // Teleport all players to the lobby
+        for (UUID playerId : plugin.playermanager.keySet()) {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                double x = plugin.getConfig().getDouble("LobbySpawn.X");
+                double y = plugin.getConfig().getDouble("LobbySpawn.Y");
+                double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+                String worldName = plugin.getConfig().getString("LobbySpawn.world");
+
+                if (worldName != null && !worldName.isEmpty()) {
+                    player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+                }
             }
         }
 
-        // Reset the game state or declare a winner (you can customize this)
-        // Reset game flags, player data, etc.
-        isStarted = false; // Mark the game as not started
-        plugin.playermanager.clear(); // Clear the game players list
+        resetGame();
     }
-    
+    @EventHandler
+    public void onPlayerTag(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player) || !(event.getDamager() instanceof Player)) return;
+
+        Player taggedPlayer = (Player) event.getEntity();
+        Player taggingPlayer = (Player) event.getDamager();
+
+        PlayerManager taggingData = plugin.playermanager.get(taggingPlayer.getUniqueId());
+        PlayerManager taggedData = plugin.playermanager.get(taggedPlayer.getUniqueId());
+
+        // Ensure both players are part of the game
+        if (taggingData == null || taggedData == null) return;
+        if (!taggingData.isIngame() || !taggedData.isIngame()) return;
+
+        // Check if the tagging player is a zombie
+        if (taggingData.isIsdead()) { // Tagging player is a zombie
+            if (!taggedData.isIsdead()) { // Tagged player is not yet a zombie
+                taggedData.setIsdead(true); // Mark as zombie
+                taggedPlayer.getInventory().setHelmet(new ItemStack(Material.PUMPKIN)); // Equip pumpkin
+                Bukkit.broadcastMessage("§c" + taggedPlayer.getName() + " has been tagged and turned into a zombie!");
+            }
+        }
+    }
 
 }
+

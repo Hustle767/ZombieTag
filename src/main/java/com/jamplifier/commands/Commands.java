@@ -19,9 +19,9 @@ public class Commands implements CommandExecutor {
         this.plugin = plugin;
     }
 
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        // Check if sender is a player
         if (!(sender instanceof Player)) {
             sender.sendMessage("This command can only be used by players.");
             return true;
@@ -29,7 +29,6 @@ public class Commands implements CommandExecutor {
 
         Player player = (Player) sender;
 
-        // Show help if the player has the 'zombietag.player' permission
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             if (player.hasPermission("zombietag.player")) {
                 showHelp(player);
@@ -38,43 +37,50 @@ public class Commands implements CommandExecutor {
             }
             return true;
         }
-     // Lobby Join command
+
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!player.hasPermission("zombietag.admin")) {
+                player.sendMessage("§cYou do not have permission to use this command!");
+                return true;
+            }
+
+            plugin.reloadConfig();
+            plugin.getGameManager().setupGame(); // Ensure spawns are reloaded
+            player.sendMessage("§aZombieTag configuration reloaded!");
+            return true;
+        }
+
         if (!player.hasPermission("zombietag.player")) {
             player.sendMessage("§cYou do not have permission to use this command!");
             return true;
         }
 
-        // Handle 'join' command
-        if (args.length == 1 && args[0].equalsIgnoreCase("join")) {
-            return handleJoin(player);
-        }
-        // handle leave command
-        if (args.length == 1 && args[0].equalsIgnoreCase("leave")) {
-            return handleLeave(player);
-        }
-
-        // Handle commands with arguments
-        if (args.length == 2) {
-            if (args[0].equalsIgnoreCase("setspawn") || args[0].equalsIgnoreCase("teleport")) {
-                // Admin commands need 'zombietag.admin' permission
-                if (!player.hasPermission("zombietag.admin")) {
-                    player.sendMessage("§cYou do not have permission to use this command!");
-                    return true;
+        switch (args[0].toLowerCase()) {
+            case "join":
+                return handleJoin(player);
+            case "leave":
+                return handleLeave(player);
+            case "setspawn":
+            case "teleport":
+                if (args.length == 2) {
+                    if (!player.hasPermission("zombietag.admin")) {
+                        player.sendMessage("§cYou do not have permission to use this command!");
+                        return true;
+                    }
+                    return args[0].equalsIgnoreCase("setspawn")
+                            ? handleSetSpawn(player, args[1])
+                            : handleTeleport(player, args[1]);
                 }
-
-                // Handle 'setspawn' and 'teleport' commands
-                if (args[0].equalsIgnoreCase("setspawn")) {
-                    return handleSetSpawn(player, args[1]);
-                } else if (args[0].equalsIgnoreCase("teleport")) {
-                    return handleTeleport(player, args[1]);
-                }
-            }
+                break;
+            default:
+                player.sendMessage("§eInvalid command. Use /zombietag help for available commands.");
+                return true;
         }
 
-        // If command does not match, show usage
-        player.sendMessage("§eUsage: /zombietag <help|setspawn|teleport> <lobby|game>");
+        player.sendMessage("§eUsage: /zombietag <help|setspawn|teleport|reload> <lobby|game>");
         return true;
     }
+
 
     private void showHelp(Player player) {
         player.sendMessage("§eZombieTag Commands:");
@@ -204,32 +210,30 @@ public class Commands implements CommandExecutor {
 
 
     private boolean handleLeave(Player player) {
-        // Check if the player is in the lobby or the game
-        if (!plugin.playermanager.containsKey(player.getUniqueId())) {
+        UUID playerId = player.getUniqueId();
+
+        if (!plugin.playermanager.containsKey(playerId)) {
             player.sendMessage("§cYou are not currently in the lobby or game!");
             return true;
         }
 
-        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+        PlayerManager playerData = plugin.playermanager.get(playerId);
 
-        // Check if the player is in the game
         if (playerData.isIngame()) {
-            player.sendMessage("§cYou are currently in a game! You must leave the game before you can leave the lobby.");
+            player.sendMessage("§cYou are currently in a game! You must finish the game before leaving.");
             return true;
         }
 
-        // Remove the player from the playermanager (lobby)
-        plugin.playermanager.remove(player.getUniqueId());
-
-        // Inform the GameManager to remove the player from the lobby
+        // Remove the player from the lobby
+        plugin.playermanager.remove(playerId);
         plugin.getGameManager().removePlayerFromLobby(player);
 
-        player.sendMessage("§aYou have successfully left the lobby.");
+        // Check if the countdown needs to be canceled
+        if (plugin.getGameManager().lobbyPlayers.size() < plugin.getConfig().getInt("PlayerNeeded", 2)) {
+            plugin.getGameManager().cancelCountdown();
+        }
 
+        player.sendMessage("§aYou have successfully left the lobby.");
         return true;
     }
-
-
-
-
 }
