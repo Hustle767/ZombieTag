@@ -8,8 +8,7 @@ GracePeriod: 10 # Seconds during which zombies cannot tag
 ZombieSpeedBoost: true # Zombies get a speed boost
 SurvivorReward:
   Enabled: true
-  Item: DIAMOND
-  Quantity: 1
+  Command: "give {player} golden_apple 2" # Console command to run for survivors
 Messages:
   ZombieWin: "§cZombies win! All players have been tagged."
   SurvivorWin: "§aSurvivors win! You escaped the zombie apocalypse!"

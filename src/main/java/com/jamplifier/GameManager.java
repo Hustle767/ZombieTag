@@ -276,6 +276,20 @@ public class GameManager implements Listener {
     public void endGame() {
         gameInProgress = false;
         Bukkit.broadcastMessage("§aThe game has ended!");
+     // Count survivors
+        long survivorCount = plugin.playermanager.values().stream()
+                .filter(data -> data.isIngame() && !data.isIsdead())
+                .count();
+
+        // Announce the winner
+        if (survivorCount > 0) {
+            Bukkit.broadcastMessage("§aSurvivors win! " + survivorCount + " player(s) survived the zombie apocalypse.");
+            grantSurvivorRewards(); // Call the reward method
+        } else {
+            Bukkit.broadcastMessage("§cZombies win! All players have been tagged.");
+        }
+
+        // Retrieve lobby spawn location
 
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
@@ -323,6 +337,13 @@ public class GameManager implements Listener {
 
         Player taggedPlayer = (Player) event.getEntity();
         Player taggingPlayer = (Player) event.getDamager();
+        
+        // Check if the tagging player is in the grace period
+        if (taggingPlayer.hasMetadata("gracePeriod")) {
+            taggingPlayer.sendMessage("§cYou cannot tag players during the grace period!");
+            event.setCancelled(true);
+            return;
+        }
 
         PlayerManager taggingData = plugin.playermanager.get(taggingPlayer.getUniqueId());
         PlayerManager taggedData = plugin.playermanager.get(taggedPlayer.getUniqueId());
@@ -383,7 +404,34 @@ public class GameManager implements Listener {
             }
         }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
     }
+    private void grantSurvivorRewards() {
+        // Check if the feature is enabled
+        if (!plugin.getConfig().getBoolean("SurvivorReward.Enabled", true)) {
+            Bukkit.getLogger().info("Survivor rewards are disabled.");
+            return;
+        }
 
+        // Item Reward Configuration
+        String itemType = plugin.getConfig().getString("SurvivorReward.Item.Type", "");
+        int itemQuantity = plugin.getConfig().getInt("SurvivorReward.Item.Quantity", 0);
+        Material rewardMaterial = Material.matchMaterial(itemType);
+
+        // Command Reward Configuration
+        String commandTemplate = plugin.getConfig().getString("SurvivorReward.Command", "");
+
+        // Grant rewards to survivors
+        for (Player player : plugin.gamePlayers) {
+            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+            if (playerData != null && !playerData.isIsdead()) {
+                // Run command reward
+                if (!commandTemplate.isEmpty()) {
+                    String command = commandTemplate.replace("{player}", player.getName());
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                    player.sendMessage("§aA reward has been granted for surviving!");
+                }
+            }
+        }
+    }
 
 
 }
