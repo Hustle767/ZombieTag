@@ -282,7 +282,6 @@ public class GameManager implements Listener {
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
-        // Iterate through all players in the playermanager
         for (UUID playerId : plugin.playermanager.keySet()) {
             PlayerManager playerData = plugin.playermanager.get(playerId);
             if (playerData != null && playerData.isIngame()) {
@@ -290,7 +289,7 @@ public class GameManager implements Listener {
                 if (player != null) {
                     // Restore original helmet
                     player.getInventory().setHelmet(playerData.getOriginalHelmet());
-                    playerData.setOriginalHelmet(null);
+                    playerData.setOriginalHelmet(null); // Clear saved helmet
 
                     // Teleport player to lobby
                     if (worldName != null && !worldName.isEmpty()) {
@@ -298,6 +297,8 @@ public class GameManager implements Listener {
                         if (world != null) {
                             player.teleport(new Location(world, x, y, z));
                             player.sendMessage("§aYou have been teleported to the lobby.");
+                        } else {
+                            player.sendMessage("§cThe lobby world does not exist.");
                         }
                     }
                 }
@@ -307,12 +308,12 @@ public class GameManager implements Listener {
             }
         }
 
-        // Clear game state
         isStarted = false;
         plugin.gamePlayers.clear();
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
     }
+
 
 
 
