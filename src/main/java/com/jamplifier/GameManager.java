@@ -272,14 +272,25 @@ public class GameManager implements Listener {
 
     public void endGame() {
         gameInProgress = false;
-        Bukkit.broadcastMessage("§aThe game has ended!");
 
+        // Count survivors
+        long survivorCount = plugin.playermanager.values().stream()
+                .filter(data -> data.isIngame() && !data.isIsdead())
+                .count();
+
+        // Announce the winner
+        if (survivorCount > 0) {
+            Bukkit.broadcastMessage("§aSurvivors win! " + survivorCount + " player(s) survived the zombie apocalypse.");
+        } else {
+            Bukkit.broadcastMessage("§cZombies win! All players have been tagged.");
+        }
+
+        // Retrieve lobby spawn location
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
-        // Iterate through all players in the playermanager
         for (UUID playerId : plugin.playermanager.keySet()) {
             PlayerManager playerData = plugin.playermanager.get(playerId);
             if (playerData != null && playerData.isIngame()) {
@@ -295,6 +306,8 @@ public class GameManager implements Listener {
                         if (world != null) {
                             player.teleport(new Location(world, x, y, z));
                             player.sendMessage("§aYou have been teleported to the lobby.");
+                        } else {
+                            player.sendMessage("§cThe lobby world does not exist.");
                         }
                     }
                 }
