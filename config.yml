@@ -31,4 +31,12 @@ GameSpawn:
   Y: 0
   Z: 0
   
-  
+Effects:
+  BlindnessDuration: 1
+  NightVisionDuration: 1
+    
+SaveYourself:
+  Enabled: true
+  TimeLimit: 10 # Time in seconds for a tagged player to tag another player
+  ImmunityTime: 2 # Time in seconds of immunity after tagging
+

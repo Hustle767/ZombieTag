@@ -1,6 +1,7 @@
 package com.jamplifier;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import com.jamplifier.PlayerData.PlayerManager;
@@ -26,7 +29,6 @@ public class GameManager implements Listener {
 
     private MainClass plugin = MainClass.getPlugin(MainClass.class);
     
-    private int lobbyCountdown = 10; // Countdown duration
     private boolean isStarted = false;
     private boolean gameInProgress = false; // Track game status
     private BukkitRunnable countdownTask = null;
@@ -40,13 +42,23 @@ public class GameManager implements Listener {
     public void setInitialZombie(Player zombie) {
         this.initialZombie = zombie;
     }
-
-
-
-
+    
+    public boolean isPlayerInLobby(Player player) {
+        return lobbyPlayers.contains(player);
+    }
+    // Methods for checking and changing game state
+    public boolean isGameInProgress() {
+        return gameInProgress;
+    }
+    
+   
     public List<Player> lobbyPlayers = new ArrayList<>();
     Location lobbySpawn;
     Location gameSpawn;
+    public List<Player> getLobbyPlayers() {
+        return lobbyPlayers;
+    }
+
     
     // Setting up game spawns and lobby spawns
     public void setupGame() {
@@ -85,10 +97,6 @@ public class GameManager implements Listener {
             }
         }
     }
-
-
-
-
 
 
     public void gameStart() {
@@ -139,9 +147,16 @@ public class GameManager implements Listener {
             } else {
                 Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
             }
-
+            
+            
+         // Apply simulated darkness effect
+          
+         
+            
+            applySuspiciousStewBlindness(initialZombie);
             initialZombie.teleport(gameSpawn);
             initialZombie.sendMessage("§cYou are the zombie! A grace period is active. Wait to start tagging!");
+
             startGracePeriod(initialZombie);
         }
 
@@ -170,10 +185,16 @@ public class GameManager implements Listener {
         }
         gameTimer();
     }
+    public void applySuspiciousStewBlindness(Player player) {
+        int blindnessSeconds = plugin.getConfig().getInt("Effects.BlindnessDuration", 10); // Default: 10
+        int nightVisionSeconds = plugin.getConfig().getInt("Effects.NightVisionDuration", 10); // Default: 10
+        // Convert seconds to ticks
+        int blindnessTicks = blindnessSeconds * 20;
+        int nightVisionTicks = nightVisionSeconds * 20;
 
-
-
-
+        player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, nightVisionTicks, 0));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, blindnessTicks, 0));
+    }
 
 
     // Lobby countdown logic
@@ -255,54 +276,84 @@ public class GameManager implements Listener {
             player.sendMessage("§cYou are not in the lobby!");
         }
     }
+    
+    
+    // HANDLING PLAYERS DISCONNECT/CRASH DURING GAME
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
 
+        Bukkit.getLogger().info("PlayerQuitEvent triggered for: " + player.getName());
+
         PlayerManager playerData = plugin.playermanager.get(playerUUID);
 
         if (playerData != null) {
-            // Restore the original helmet if the player is a zombie or tagged
+            // Restore helmet for zombies or tagged players
             if (playerData.isIsdead() && playerData.getOriginalHelmet() != null) {
                 player.getInventory().setHelmet(playerData.getOriginalHelmet());
-                plugin.getLogger().info("Restored helmet for player " + player.getName() + ".");
-                playerData.setOriginalHelmet(null); // Clear saved helmet to avoid issues
+                playerData.setOriginalHelmet(null);
+                plugin.getLogger().info("Restored helmet for player: " + player.getName());
             }
 
-            // Check if the player is the initial zombie
-            if (plugin.getGameManager().getInitialZombie() != null
-                    && plugin.getGameManager().getInitialZombie().getUniqueId().equals(playerUUID)) {
-                plugin.getGameManager().handleInitialZombieQuit(player);
-                return; // Exit early to avoid further processing
+            // Handle initial zombie quit
+            if (player.equals(initialZombie)) {
+                Bukkit.broadcastMessage("§cThe initial zombie (" + player.getName() + ") has left the game. Ending the game.");
+                handleInitialZombieQuit(player);
+                return; // Exit early as the game ends
             }
 
-            // Remove the player from the gamePlayers list if they are in-game
+            // Remove player from gamePlayers
             plugin.gamePlayers.remove(player);
+            Bukkit.getLogger().info("Removed player: " + player.getName() + " from gamePlayers.");
 
-            // Remove the player from the playermanager map
+            // Remove player from playermanager
             plugin.playermanager.remove(playerUUID);
-            plugin.getLogger().info("Removed player " + player.getName() + " from the playermanager.");
+            Bukkit.getLogger().info("Removed player: " + player.getName() + " from playermanager.");
 
-            // Remove the player from the lobby if applicable
-            plugin.getGameManager().removePlayerFromLobby(player);
+            // Handle lobby players
+            if (isPlayerInLobby(player)) {
+                removePlayerFromLobby(player);
+                Bukkit.getLogger().info("Removed player: " + player.getName() + " from lobbyPlayers.");
+
+                // Check if players left in the lobby are below the required count
+                if (getLobbyPlayers().size() < getPlayerNeeded()) {
+                    Bukkit.broadcastMessage("§cNot enough players! The game will now reset.");
+                    resetGame();
+                    teleportAllToLobby(true);
+                }
+            }
         }
     }
 
     public void handleInitialZombieQuit(Player zombie) {
         Bukkit.broadcastMessage("§cThe initial zombie (" + zombie.getName() + ") has left the game. Returning all players to the lobby.");
+        Bukkit.getLogger().info("Handling initial zombie quit for player: " + zombie.getName());
 
-        // Cancel any active game timer
         cancelCountdown();
 
-        // Restore the initial zombie's helmet
         PlayerManager zombieData = plugin.playermanager.get(zombie.getUniqueId());
-        if (zombieData != null && zombieData.isIsdead() && zombieData.getOriginalHelmet() != null) {
-            zombie.getInventory().setHelmet(zombieData.getOriginalHelmet());
-            zombieData.setOriginalHelmet(null); // Clear the saved helmet
+        if (zombieData != null) {
+            if (zombieData.getOriginalHelmet() != null) {
+                zombie.getInventory().setHelmet(zombieData.getOriginalHelmet());
+                zombieData.setOriginalHelmet(null);
+            }
+            zombieData.setIngame(false);
+            zombieData.setIsdead(false);
+            Bukkit.getLogger().info("Reset state for zombie: " + zombie.getName());
         }
 
-        // Retrieve lobby spawn location
+        Bukkit.getLogger().info("Calling teleportAllToLobby to reset players.");
+        teleportAllToLobby(true);
+
+        Bukkit.getLogger().info("Resetting game state.");
+        resetGame();
+    }
+
+
+    private void teleportAllToLobby(boolean resetStates) {
+        Bukkit.getLogger().info("Teleporting all players to the lobby. ResetStates: " + resetStates);
+
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
@@ -311,33 +362,47 @@ public class GameManager implements Listener {
         World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
         if (world == null) {
             Bukkit.getLogger().severe("Lobby spawn world is invalid or not set: " + worldName);
-            return; // Exit if lobby spawn is invalid
+            return;
         }
 
         Location lobbySpawn = new Location(world, x, y, z);
 
-        // Reset player state and teleport all game players
         for (Player gamePlayer : new ArrayList<>(plugin.gamePlayers)) {
+            Bukkit.getLogger().info("Attempting to teleport player: " + gamePlayer.getName());
+
             PlayerManager playerData = plugin.playermanager.get(gamePlayer.getUniqueId());
             if (playerData != null) {
-                playerData.setIngame(false);
-                playerData.setIsdead(false);
+                if (resetStates) {
+                    playerData.setIngame(false);
+                    playerData.setIsdead(false);
 
-                // Restore the player's helmet if applicable
-                if (playerData.getOriginalHelmet() != null) {
-                    gamePlayer.getInventory().setHelmet(playerData.getOriginalHelmet());
-                    playerData.setOriginalHelmet(null); // Clear the saved helmet
+                    if (playerData.getOriginalHelmet() != null) {
+                        gamePlayer.getInventory().setHelmet(playerData.getOriginalHelmet());
+                        playerData.setOriginalHelmet(null);
+                        Bukkit.getLogger().info("Restored helmet for player: " + gamePlayer.getName());
+                    }
+                }
+
+                // Perform the teleport
+                if (gamePlayer.isOnline()) {
+                    gamePlayer.teleport(lobbySpawn);
+                    gamePlayer.sendMessage("§aYou have been returned to the lobby.");
+                    Bukkit.getLogger().info("Successfully teleported player: " + gamePlayer.getName());
+                } else {
+                    Bukkit.getLogger().warning("Player " + gamePlayer.getName() + " is not online. Skipping teleport.");
                 }
             }
-
-            // Teleport the player to the lobby
-            gamePlayer.teleport(lobbySpawn);
-            gamePlayer.sendMessage("§aYou have been returned to the lobby.");
         }
 
-        resetGame(); // Reset the game state after teleporting players
+        if (resetStates) {
+            plugin.gamePlayers.clear();
+            Bukkit.getLogger().info("Cleared gamePlayers list after teleportation.");
+        }
     }
 
+
+
+ // HANDLING PLAYERS DISCONNECT/CRASH DURING GAME
 
 
     public void cancelCountdown() {
@@ -347,12 +412,29 @@ public class GameManager implements Listener {
         }
     }
     public void resetGame() {
-        // Reset the game state and player data
+        Bukkit.getLogger().info("Resetting the game state.");
         isStarted = false;
         gameInProgress = false;
+
         lobbyPlayers.clear();
+        plugin.gamePlayers.clear();
+
+        for (PlayerManager playerData : plugin.playermanager.values()) {
+            playerData.setIngame(false);
+            playerData.setIsdead(false);
+            Player player = Bukkit.getPlayer(playerData.getUuid());
+            if (player != null && playerData.getOriginalHelmet() != null) {
+                player.getInventory().setHelmet(playerData.getOriginalHelmet());
+                playerData.setOriginalHelmet(null);
+            }
+        }
+
+        plugin.playermanager.clear();
         Bukkit.broadcastMessage("§cThe game has ended. Waiting for players to join for the next round.");
     }
+
+
+
     public void gameTimer() {
         int countdownTime = plugin.getConfig().getInt("GameLength", 300); // Default to 5 minutes (300 seconds)
         int gracePeriodTime = 10; // Last 10 seconds of countdown
@@ -385,11 +467,6 @@ public class GameManager implements Listener {
     }
 
 
-    // Methods for checking and changing game state
-    public boolean isGameInProgress() {
-        return gameInProgress;
-    }
-    
 
     public void endGame() {
         gameInProgress = false;
@@ -453,9 +530,52 @@ public class GameManager implements Listener {
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
     }
+    private void startGracePeriod(Player initialZombie) {
+        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
+        
+        for (Player gamePlayer : plugin.gamePlayers) {
+            gamePlayer.sendMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
+        }
+        
 
+        // Prevent tagging during grace period
+        initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
 
+        // Schedule the end of the grace period
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                initialZombie.removeMetadata("gracePeriod", plugin);
+                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
+            }
+        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
+    }
+    private void grantSurvivorRewards() {
+        // Check if the feature is enabled
+        if (!plugin.getConfig().getBoolean("SurvivorReward.Enabled", true)) {
+            Bukkit.getLogger().info("Survivor rewards are disabled.");
+            return;
+        }
 
+        // Command Reward Configuration
+        String commandTemplate = plugin.getConfig().getString("SurvivorReward.Command", "");
+
+        // Grant rewards to survivors
+        for (Player player : plugin.gamePlayers) {
+            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+            if (playerData != null && !playerData.isIsdead()) {
+                // Run command reward
+                if (!commandTemplate.isEmpty()) {
+                    String command = commandTemplate.replace("{player}", player.getName());
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                    player.sendMessage("§aA reward has been granted for surviving!");
+                }
+            }
+        }
+    }
+    
+
+// PLUGIN EVENT HANDLING SECTION //  
 
     @EventHandler
     public void onPlayerTag(EntityDamageByEntityEvent event) {
@@ -501,6 +621,7 @@ public class GameManager implements Listener {
     }
 
 
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
@@ -520,56 +641,41 @@ public class GameManager implements Listener {
             }
         }
     }
+    @EventHandler
+    public void onBlockBreak(org.bukkit.event.block.BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
 
-    private void startGracePeriod(Player initialZombie) {
-        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
-        
-        for (Player gamePlayer : plugin.gamePlayers) {
-            gamePlayer.sendMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
-        }
-        
-
-        // Prevent tagging during grace period
-        initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
-
-        // Schedule the end of the grace period
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                initialZombie.removeMetadata("gracePeriod", plugin);
-                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
-            }
-        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
-    }
-    private void grantSurvivorRewards() {
-        // Check if the feature is enabled
-        if (!plugin.getConfig().getBoolean("SurvivorReward.Enabled", true)) {
-            Bukkit.getLogger().info("Survivor rewards are disabled.");
-            return;
-        }
-
-        // Item Reward Configuration
-        String itemType = plugin.getConfig().getString("SurvivorReward.Item.Type", "");
-        int itemQuantity = plugin.getConfig().getInt("SurvivorReward.Item.Quantity", 0);
-        Material rewardMaterial = Material.matchMaterial(itemType);
-
-        // Command Reward Configuration
-        String commandTemplate = plugin.getConfig().getString("SurvivorReward.Command", "");
-
-        // Grant rewards to survivors
-        for (Player player : plugin.gamePlayers) {
-            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
-            if (playerData != null && !playerData.isIsdead()) {
-                // Run command reward
-                if (!commandTemplate.isEmpty()) {
-                    String command = commandTemplate.replace("{player}", player.getName());
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                    player.sendMessage("§aA reward has been granted for surviving!");
-                }
-            }
+        // Prevent breaking blocks for lobby and game players
+        if (playerData != null && (playerData.isIngame() || isPlayerInLobby(player))) {
+            event.setCancelled(true);
         }
     }
 
+    @EventHandler
+    public void onBlockPlace(org.bukkit.event.block.BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+
+        // Prevent placing blocks for lobby and game players
+        if (playerData != null && (playerData.isIngame() || isPlayerInLobby(player))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+
+        // Prevent interaction for lobby and game players
+        if (playerData != null && (playerData.isIngame() || isPlayerInLobby(player))) {
+            event.setCancelled(true);
+        }
+    }
+
+
+    
 
 }
 
