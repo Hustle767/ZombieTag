@@ -5,6 +5,7 @@ import com.jamplifier.PlayerData.PlayerManager;
 
 import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -21,7 +22,6 @@ public class Commands implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        // Check if sender is a player
         if (!(sender instanceof Player)) {
             sender.sendMessage("This command can only be used by players.");
             return true;
@@ -29,96 +29,119 @@ public class Commands implements CommandExecutor {
 
         Player player = (Player) sender;
 
-        // Show help if the player has the 'zombietag.player' permission
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            if (player.hasPermission("zombietag.player")) {
+            if (player.hasPermission("zombietag.admin")) {
                 showHelp(player);
             } else {
-                player.sendMessage("§cYou do not have permission to access help.");
+                showHelpAdmin(player);
             }
             return true;
         }
-        if (args[0].equalsIgnoreCase("reload")) {
-            if (!player.hasPermission("zombietag.admin")) {
+
+        String subCommand = args[0].toLowerCase();
+
+        // Admin-only commands
+        if (subCommand.equals("reload")) {
+            Bukkit.getLogger().info(player.getName() + " is trying to execute reload.");
+            if (player.hasPermission("zombietag.admin")) {
+                return handleReload(player);
+            } else {
                 player.sendMessage("§cYou do not have permission to use this command!");
                 return true;
             }
-
-            plugin.reloadConfig();
-            plugin.getGameManager().setupGame(); // Ensure spawns are reloaded
-            player.sendMessage("§aZombieTag configuration reloaded!");
-            return true;
-        }
-     // Lobby Join command
-        if (!player.hasPermission("zombietag.player")) {
-            player.sendMessage("§cYou do not have permission to use this command!");
-            return true;
         }
 
-        // Handle 'join' command
-        if (args.length == 1 && args[0].equalsIgnoreCase("join")) {
-            return handleJoin(player);
-        }
-        // handle leave command
-        if (args.length == 1 && args[0].equalsIgnoreCase("leave")) {
-            return handleLeave(player);
-        }
-
-        // Handle commands with arguments
-        if (args.length == 2) {
-            if (args[0].equalsIgnoreCase("setspawn") || args[0].equalsIgnoreCase("teleport")) {
-                // Admin commands need 'zombietag.admin' permission
-                if (!player.hasPermission("zombietag.admin")) {
-                    player.sendMessage("§cYou do not have permission to use this command!");
-                    return true;
-                }
-
-                // Handle 'setspawn' and 'teleport' commands
-                if (args[0].equalsIgnoreCase("setspawn")) {
+        if (subCommand.equals("setspawn")) {
+            if (player.hasPermission("zombietag.admin")) {
+                if (args.length == 2) {
                     return handleSetSpawn(player, args[1]);
-                } else if (args[0].equalsIgnoreCase("teleport")) {
-                    return handleTeleport(player, args[1]);
+                } else {
+                    player.sendMessage("§eUsage: /zombietag setspawn <lobby|game>");
                 }
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
             }
+            return true;
         }
 
-        // If command does not match, show usage
-        player.sendMessage("§eUsage: /zombietag <help|setspawn|teleport> <lobby|game>");
+        if (subCommand.equals("teleport")) {
+            if (player.hasPermission("zombietag.admin")) {
+                if (args.length == 2) {
+                    return handleTeleport(player, args[1]);
+                } else {
+                    player.sendMessage("§eUsage: /zombietag teleport <lobby|game>");
+                }
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
+            }
+            return true;
+        }
+
+        // Player commands
+        if (subCommand.equals("join")) {
+            if (player.hasPermission("zombietag.player")) {
+                return handleJoin(player);
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
+            }
+            return true;
+        }
+
+        if (subCommand.equals("leave")) {
+            if (player.hasPermission("zombietag.player")) {
+                return handleLeave(player);
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
+            }
+            return true;
+        }
+
+        // Invalid command
+        player.sendMessage("§eInvalid command. Use /zombietag help for available commands.");
         return true;
     }
 
+
+
     private void showHelp(Player player) {
         player.sendMessage("§eZombieTag Commands:");
+        player.sendMessage("  §7/zombietag <join|leave>");
+        player.sendMessage("  §7/zombietag help - Show this help message.");
+    }
+    private void showHelpAdmin(Player player) {
+        player.sendMessage("§eZombieTag Commands:");
+        player.sendMessage("  §7/zombietag <join|leave>");
         player.sendMessage("  §7/zombietag setspawn <lobby|game> - Set the spawn location for the lobby or game.");
         player.sendMessage("  §7/zombietag teleport <lobby|game> - Teleport to the lobby or game spawn.");
         player.sendMessage("  §7/zombietag help - Show this help message.");
     }
 
     private boolean handleSetSpawn(Player player, String type) {
+        if (!player.hasPermission("zombietag.admin")) {
+            player.sendMessage("§cYou do not have permission to use this command!");
+            return false;
+        }
+
         Location loc = player.getLocation();
-        if (type.equalsIgnoreCase("lobby")) {
-            plugin.getConfig().set("LobbySpawn.world", loc.getWorld().getName());
-            plugin.getConfig().set("LobbySpawn.X", loc.getX());
-            plugin.getConfig().set("LobbySpawn.Y", loc.getY());
-            plugin.getConfig().set("LobbySpawn.Z", loc.getZ());
-            plugin.saveConfig();
-            player.sendMessage("§aLobby spawn set!");
-        } else if (type.equalsIgnoreCase("game")) {
-            plugin.getConfig().set("GameSpawn.world", loc.getWorld().getName());
-            plugin.getConfig().set("GameSpawn.X", loc.getX());
-            plugin.getConfig().set("GameSpawn.Y", loc.getY());
-            plugin.getConfig().set("GameSpawn.Z", loc.getZ());
-            plugin.saveConfig();
-            player.sendMessage("§aGame spawn set!");
-        } else {
+        String path = type.equalsIgnoreCase("lobby") ? "LobbySpawn" : "GameSpawn";
+
+        if (!type.equalsIgnoreCase("lobby") && !type.equalsIgnoreCase("game")) {
             player.sendMessage("§cInvalid spawn type! Use 'lobby' or 'game'.");
             return false;
         }
+
+        plugin.getConfig().set(path + ".world", loc.getWorld().getName());
+        plugin.getConfig().set(path + ".X", loc.getX());
+        plugin.getConfig().set(path + ".Y", loc.getY());
+        plugin.getConfig().set(path + ".Z", loc.getZ());
+        plugin.saveConfig();
+
+        player.sendMessage("§a" + type.substring(0, 1).toUpperCase() + type.substring(1) + " spawn set!");
         return true;
     }
 
     private boolean handleTeleport(Player player, String type) {
-        if (!player.hasPermission("zombietag.admin.teleport")) {
+        if (!player.hasPermission("zombietag.admin")) {
             player.sendMessage("§cYou do not have permission to teleport!");
             return false;
         }

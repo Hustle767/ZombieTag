@@ -3,6 +3,7 @@ package com.jamplifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -50,8 +51,7 @@ public class GameManager implements Listener {
     public boolean isGameInProgress() {
         return gameInProgress;
     }
-    
-   
+
     public List<Player> lobbyPlayers = new ArrayList<>();
     Location lobbySpawn;
     Location gameSpawn;
@@ -156,6 +156,14 @@ public class GameManager implements Listener {
             applySuspiciousStewBlindness(initialZombie);
             initialZombie.teleport(gameSpawn);
             initialZombie.sendMessage("§cYou are the zombie! A grace period is active. Wait to start tagging!");
+            initialZombie.sendActionBar("§cYou are the ZOMBIE!");
+            initialZombie.sendTitle(
+            	    "§cYou are the ZOMBIE!!", // Title
+            	    "§eTag others till theres no survivors!", // Subtitle
+            	    10, // Fade-in duration (ticks)
+            	    70, // Stay duration (ticks)
+            	    20  // Fade-out duration (ticks)
+            	);
 
             startGracePeriod(initialZombie);
         }
@@ -175,6 +183,7 @@ public class GameManager implements Listener {
      
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§aThe game has started! Avoid being tagged by the zombie.");
+            
         }
      // Announce game length if enabled in config
         if (plugin.getConfig().getBoolean("AnnounceGameLength", true)) {
@@ -183,7 +192,31 @@ public class GameManager implements Listener {
                 gamePlayer.sendMessage("§eThe game will last for " + (gameLength / 60) + " minutes.");
             }
         }
+      
+     // Start tracking for the stay-still feature
+        startStayStillTimer();
         gameTimer();
+        startGameMusic();
+    }
+    private void startGracePeriod(Player initialZombie) {
+        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
+        
+        for (Player gamePlayer : plugin.gamePlayers) {
+            gamePlayer.sendMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
+        }
+        
+
+        // Prevent tagging during grace period
+        initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
+
+        // Schedule the end of the grace period
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                initialZombie.removeMetadata("gracePeriod", plugin);
+                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
+            }
+        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
     }
     public void applySuspiciousStewBlindness(Player player) {
         int blindnessSeconds = plugin.getConfig().getInt("Effects.BlindnessDuration", 10); // Default: 10
@@ -430,41 +463,56 @@ public class GameManager implements Listener {
         }
 
         plugin.playermanager.clear();
-        Bukkit.broadcastMessage("§cThe game has ended. Waiting for players to join for the next round.");
+        for (Player gamePlayer : plugin.gamePlayers) {
+            gamePlayer.sendMessage("§cThe game has ended. Waiting for players to join for the next round.");
+        }
     }
 
 
 
     public void gameTimer() {
-        int countdownTime = plugin.getConfig().getInt("GameLength", 300); // Default to 5 minutes (300 seconds)
+        if (!gameInProgress) {
+            Bukkit.getLogger().warning("Game timer attempted to start but the game is not in progress.");
+            return;
+        }
+
+        int countdownTime = plugin.getConfig().getInt("GameLength", 300); // Default to 300 seconds
         int gracePeriodTime = 10; // Last 10 seconds of countdown
 
-        // Add a countdown for the game timer
+        Bukkit.getLogger().info("Starting game timer for " + countdownTime + " seconds.");
+
         countdownTask = new BukkitRunnable() {
             int timeLeft = countdownTime;
 
             @Override
             public void run() {
+                if (!gameInProgress) {
+                    Bukkit.getLogger().warning("Game timer detected that the game is no longer in progress. Cancelling timer.");
+                    cancel();
+                    return;
+                }
+
                 if (timeLeft > gracePeriodTime) {
                     // Normal gameplay, no countdown broadcast
                     timeLeft--;
                 } else if (timeLeft <= gracePeriodTime && timeLeft > 0) {
                     // Broadcast countdown for the final seconds
-                	for (Player gamePlayer : plugin.gamePlayers) {
+                    for (Player gamePlayer : plugin.gamePlayers) {
                         gamePlayer.sendMessage("§eGame ends in " + timeLeft + " seconds.");
                     }
-                	
                     timeLeft--;
                 } else {
                     // Time is up, end the game
-                    endGame(); // Call the endGame function
-                    cancel(); // Stop the timer
+                    Bukkit.getLogger().info("Game timer completed. Ending the game.");
+                    endGame();
+                    cancel();
                 }
             }
         };
 
         countdownTask.runTaskTimer(plugin, 0L, 20L); // Schedule with 0L delay and 20 ticks per second
     }
+
 
 
 
@@ -529,27 +577,10 @@ public class GameManager implements Listener {
         plugin.gamePlayers.clear();
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
+        cancelStayStillTimer(); // Add this to stop the timer when the game ends
+        stopGameMusic();
     }
-    private void startGracePeriod(Player initialZombie) {
-        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
-        
-        for (Player gamePlayer : plugin.gamePlayers) {
-            gamePlayer.sendMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
-        }
-        
-
-        // Prevent tagging during grace period
-        initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
-
-        // Schedule the end of the grace period
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                initialZombie.removeMetadata("gracePeriod", plugin);
-                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
-            }
-        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
-    }
+ 
     private void grantSurvivorRewards() {
         // Check if the feature is enabled
         if (!plugin.getConfig().getBoolean("SurvivorReward.Enabled", true)) {
@@ -575,7 +606,7 @@ public class GameManager implements Listener {
     }
     
 
-// PLUGIN EVENT HANDLING SECTION //  
+///////////////////////////////////////////PLAYER TAGGING FUNCTIONS ///////////////////////////////////////////
 
     @EventHandler
     public void onPlayerTag(EntityDamageByEntityEvent event) {
@@ -583,8 +614,8 @@ public class GameManager implements Listener {
 
         Player taggedPlayer = (Player) event.getEntity();
         Player taggingPlayer = (Player) event.getDamager();
-        
-        // Check if the tagging player is in the grace period
+
+        // Prevent tagging during grace period
         if (taggingPlayer.hasMetadata("gracePeriod")) {
             taggingPlayer.sendMessage("§cYou cannot tag players during the grace period!");
             event.setCancelled(true);
@@ -594,33 +625,64 @@ public class GameManager implements Listener {
         PlayerManager taggingData = plugin.playermanager.get(taggingPlayer.getUniqueId());
         PlayerManager taggedData = plugin.playermanager.get(taggedPlayer.getUniqueId());
 
-        // Ensure both players are part of the game
-        if (taggingData == null || taggedData == null) return;
-        if (!taggingData.isIngame() || !taggedData.isIngame()) return;
+        if (taggingData == null || taggedData == null) return; // Ensure both players have data
+        if (!taggingData.isIngame() || !taggedData.isIngame()) return; // Ensure both are in-game
 
-        // Check if the tagging player is a zombie
-        if (!taggedData.isIsdead()) {
-            taggedData.setIsdead(true);
-
-            // Save and replace the current helmet
-            if (taggedPlayer.getInventory().getHelmet() != null) {
-                taggedData.setOriginalHelmet(taggedPlayer.getInventory().getHelmet());
-            }
-
-            // Get the configured head item
-            String headItemType = plugin.getConfig().getString("HeadItem.Type", "PUMPKIN");
-            Material headItemMaterial = Material.matchMaterial(headItemType);
-            if (headItemMaterial != null) {
-                taggedPlayer.getInventory().setHelmet(new ItemStack(headItemMaterial));
-            } else {
-                Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
-            }
-
-            Bukkit.broadcastMessage("§c" + taggedPlayer.getName() + " has been tagged and turned into a zombie!");
+        // Prevent tagging other zombies
+        if (taggedData.isIsdead()) {
+            taggingPlayer.sendMessage("§cYou cannot tag another zombie!");
+            event.setCancelled(true);
+            return;
         }
+
+        // Turn the tagged player into a zombie
+        taggedData.setIsdead(true);
+        applySuspiciousStewBlindness(taggedPlayer);
+     // After turning the player into a zombie
+        stayStillWarnings.remove(taggedPlayer); // Reset warnings for the newly tagged zombie
+
+
+        // Save and replace helmet with configured item
+        if (taggedPlayer.getInventory().getHelmet() != null) {
+            taggedData.setOriginalHelmet(taggedPlayer.getInventory().getHelmet());
+        }
+
+        String headItemType = plugin.getConfig().getString("HeadItem.Type", "PUMPKIN");
+        Material headItemMaterial = Material.matchMaterial(headItemType);
+        if (headItemMaterial != null) {
+            taggedPlayer.getInventory().setHelmet(new ItemStack(headItemMaterial));
+        } else {
+            Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
+        }
+        for (Player gamePlayer : plugin.gamePlayers) {
+            gamePlayer.sendMessage("§c" + taggedPlayer.getName() + " has been tagged and turned into a zombie!");
+            taggedPlayer.sendActionBar("§c You have been tagged");
+            
+        }
+
+        // Check if all players are zombies
+        boolean allZombies = plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead);
+        if (allZombies) {
+        	 for (Player gamePlayer : plugin.gamePlayers) {
+                 gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
+             }
+            endGame();
+        }
+
+        event.setCancelled(true);
+    }
+    public void applyTagEffect(Player player) {
+        int blindnessSeconds = plugin.getConfig().getInt("Effects.BlindnessDuration", 10); // Default: 10
+        int nightVisionSeconds = plugin.getConfig().getInt("Effects.NightVisionDuration", 10); // Default: 10
+        // Convert seconds to ticks
+        int blindnessTicks = blindnessSeconds * 20;
+        int nightVisionTicks = nightVisionSeconds * 20;
+
+        player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, nightVisionTicks, 0));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, blindnessTicks, 0));
     }
 
-
+///////////////////////////////////////////EVENTS TO CANCEL DURING AME///////////////////////////////////////////////////
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
@@ -636,11 +698,11 @@ public class GameManager implements Listener {
                 ItemStack currentItem = event.getCurrentItem();
                 if (currentItem != null && currentItem.getType() == Material.matchMaterial(plugin.getConfig().getString("HeadItem.Type", "PUMPKIN"))) {
                     event.setCancelled(true);
-                    player.sendMessage("§cYou cannot remove your helmet while playing!");
                 }
             }
         }
     }
+
     @EventHandler
     public void onBlockBreak(org.bukkit.event.block.BlockBreakEvent event) {
         Player player = event.getPlayer();
@@ -673,6 +735,150 @@ public class GameManager implements Listener {
             event.setCancelled(true);
         }
     }
+    
+///////////////////////////////////////////Stay Still Timer///////////////////////////////////////////////////
+    private final Map<Player, Location> lastLocationMap = new HashMap<>();
+    private final Map<Player, Integer> stayStillWarnings = new HashMap<>();
+    private final Map<UUID, BukkitRunnable> stayStillTimers = new HashMap<>();
+
+    private void startStayStillTimer() {
+        if (!plugin.getConfig().getBoolean("StayStillTimer.Enabled", true)) {
+            return; // Exit if the stay-still feature is disabled
+        }
+
+        int stayStillTime = plugin.getConfig().getInt("StayStillTimer.TimeLimit", 30); // Configurable time in seconds
+        String stayStillMessage = plugin.getConfig().getString(
+                "StayStillTimer.Message", "§cYou stayed still for too long and turned into a zombie!");
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player player : new ArrayList<>(plugin.gamePlayers)) {
+                    // Skip players who are already zombies
+                    PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+                    if (playerData != null && playerData.isIsdead()) {
+                        continue;
+                    }
+
+                    // Get the player's current and last known locations
+                    Location currentLocation = player.getLocation();
+                    Location lastLocation = lastLocationMap.get(player);
+
+                    if (lastLocation != null && currentLocation.distanceSquared(lastLocation) < 0.01) {
+                        // Player hasn't moved significantly
+                        int warnings = stayStillWarnings.getOrDefault(player, 0) + 1;
+                        stayStillWarnings.put(player, warnings);
+
+                        if (warnings >= stayStillTime) {
+                            Bukkit.getLogger().info("Player " + player.getName() + " has stayed still for too long!");
+                            player.sendMessage(stayStillMessage);
+                            turnIntoZombie(player); // Turn the player into a zombie
+                            stayStillWarnings.remove(player); // Reset warnings
+                        } else if (stayStillTime - warnings <= 5) {
+                            // Only send countdown messages in the last 5 seconds
+                            player.sendMessage("§cMove or you'll turn into a zombie in " + (stayStillTime - warnings) + " seconds!");
+                        }
+                    } else {
+                        // Player moved, reset warnings
+                        stayStillWarnings.remove(player);
+                    }
+
+                    // Update last location
+                    lastLocationMap.put(player, currentLocation.clone());
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 20L); // Runs every second
+    }
+
+
+
+    public void stopStayStillTimer(Player player) {
+        UUID playerUUID = player.getUniqueId();
+        if (stayStillTimers.containsKey(playerUUID)) {
+            stayStillTimers.get(playerUUID).cancel();
+            stayStillTimers.remove(playerUUID);
+            Bukkit.getLogger().info("Stopped stay still timer for " + player.getName());
+        }
+    }
+    private void cancelStayStillTimer() {
+        for (BukkitRunnable timer : stayStillTimers.values()) {
+            timer.cancel();
+        }
+        stayStillTimers.clear();
+        Bukkit.getLogger().info("All stay-still timers have been canceled.");
+    }
+
+
+    private void turnIntoZombie(Player player) {
+        PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+
+        if (playerData == null || playerData.isIsdead()) {
+            Bukkit.getLogger().warning("Player " + player.getName() + " is already a zombie or has no data.");
+            return;
+        }
+
+        playerData.setIsdead(true); // Mark as a zombie
+        applySuspiciousStewBlindness(player); // Apply blindness effect
+
+        // Save and replace helmet
+        if (player.getInventory().getHelmet() != null) {
+            playerData.setOriginalHelmet(player.getInventory().getHelmet());
+        }
+
+        String headItemType = plugin.getConfig().getString("HeadItem.Type", "PUMPKIN");
+        Material headItemMaterial = Material.matchMaterial(headItemType);
+        if (headItemMaterial != null) {
+            player.getInventory().setHelmet(new ItemStack(headItemMaterial));
+        } else {
+            Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
+        }
+
+        // Notify players
+        for (Player gamePlayer : plugin.gamePlayers) {
+            gamePlayer.sendMessage("§c" + player.getName() + " has been turned into a zombie!");
+        }
+
+        // Check if all players are zombies
+        if (plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead)) {
+            Bukkit.broadcastMessage("§cAll players have been turned into zombies! The game will now end.");
+            endGame();
+        }
+    }
+
+
+///////////////////////////////////////////////MUSIC////////////////////////////////////////////////////////
+    private BukkitRunnable musicTask;
+
+    private void startGameMusic() {
+        if (!plugin.getConfig().getBoolean("GameMusic.Enabled", true)) {
+            return; // Exit if music is disabled
+        }
+
+        String sound = plugin.getConfig().getString("GameMusic.Sound", "minecraft:music_disc.pigstep");
+        float volume = (float) plugin.getConfig().getDouble("GameMusic.Volume", 1.0);
+        float pitch = (float) plugin.getConfig().getDouble("GameMusic.Pitch", 1.0);
+        int interval = plugin.getConfig().getInt("GameMusic.Interval", 60) * 20; // Convert seconds to ticks
+
+        musicTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player player : plugin.gamePlayers) {
+                    player.playSound(player.getLocation(), sound, volume, pitch);
+                }
+            }
+        };
+
+        // Schedule the music to play repeatedly
+        musicTask.runTaskTimer(plugin, 0L, interval);
+    }
+
+    private void stopGameMusic() {
+        if (musicTask != null) {
+            musicTask.cancel();
+            musicTask = null;
+        }
+    }
+
 
 
     

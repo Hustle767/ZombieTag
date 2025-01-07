@@ -1,24 +1,29 @@
 # Zombie Tag Config
 # By Jamplifier
 
-PlayerNeeded: 2
-MaxPlayers: 20
-GameLength: 300 # Game length in seconds (5 minutes)
-AnnounceGameLength: true
-GracePeriod: 10 # Seconds during which zombies cannot tag
-ZombieSpeedBoost: true # Zombies get a speed boost
+# Game settings
+PlayerNeeded: 2               # Minimum players needed to start the game
+MaxPlayers: 20                # Maximum number of players in the game
+GameLength: 300               # Game length in seconds (5 minutes)
+AnnounceGameLength: true      # Announce game length at the start
+GracePeriod: 10               # Seconds during which zombies cannot tag
+ZombieSpeedBoost: true        # Zombies get a speed boost
 
+# Survivor rewards
 SurvivorReward:
-  Enabled: true
+  Enabled: true               # Enable or disable survivor rewards
   Command: "give {player} golden_apple 2" # Console command to run for survivors
 
+# Head item for zombies
 HeadItem:
-  Type: ZOMBIE_HEAD # Configurable item placed on zombies' heads
+  Type: ZOMBIE_HEAD           # Configurable item placed on zombies' heads
 
+# Messages
 Messages:
   ZombieWin: "§cZombies win! All players have been tagged."
   SurvivorWin: "§aSurvivors win! You escaped the zombie apocalypse!"
 
+# Spawn locations
 LobbySpawn:
   world: world
   X: 0
@@ -30,13 +35,27 @@ GameSpawn:
   X: 0
   Y: 0
   Z: 0
-  
-Effects:
-  BlindnessDuration: 1
-  NightVisionDuration: 1
-    
-SaveYourself:
-  Enabled: true
-  TimeLimit: 10 # Time in seconds for a tagged player to tag another player
-  ImmunityTime: 2 # Time in seconds of immunity after tagging
 
+# Effects settings
+Effects:
+  BlindnessDuration: 1        # Duration of blindness effect in seconds
+  NightVisionDuration: 1      # Duration of night vision effect in seconds
+
+# Save Yourself settings
+SaveYourself:
+  Enabled: true               # Enable or disable "Save Yourself" mode
+  TimeLimit: 10               # Time in seconds for a tagged player to tag another player
+  ImmunityTime: 2             # Time in seconds of immunity after tagging
+
+# Stay Still Timer settings
+StayStillTimer:
+  Enabled: true               # Enable or disable the stay-still timer
+  TimeLimit: 30               # Time in seconds before a stationary player is turned into a zombie
+  Message: "§cYou stayed still for too long and turned into a zombie!"
+
+GameMusic:
+  Enabled: true
+  Sound: "minecraft:music_disc.pigstep" # Replace with desired sound
+  Volume: 1.0 # Volume level
+  Pitch: 1.0  # Pitch level
+  Interval: 60 # Interval in seconds between loops
