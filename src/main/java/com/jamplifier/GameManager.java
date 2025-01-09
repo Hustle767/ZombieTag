@@ -762,31 +762,60 @@ public class GameManager implements Listener {
 
         Bukkit.getLogger().info("PlayerJoinEvent triggered for: " + player.getName());
 
-        PlayerManager playerData = plugin.playermanager.get(playerUUID);
+        // Check if the player was part of the gamePlayers list
+        if (plugin.gamePlayers.contains(player)) {
+            PlayerManager playerData = plugin.playermanager.get(playerUUID);
 
-        if (playerData != null) {
-            restoreHelmet(player, playerData);
+            if (playerData != null) {
+                Bukkit.getLogger().info("Restoring state for rejoining player: " + player.getName());
 
-            playerData.setIngame(false);
-            playerData.setIsdead(false);
+                // Restore helmet if applicable
+                restoreHelmet(player, playerData);
 
-            plugin.gamePlayers.remove(player);
-            plugin.playermanager.remove(playerUUID);
+                // Reset player state
+                playerData.setIngame(false);
+                playerData.setIsdead(false);
 
-            String worldName = plugin.getConfig().getString("LobbySpawn.world");
-            double x = plugin.getConfig().getDouble("LobbySpawn.X");
-            double y = plugin.getConfig().getDouble("LobbySpawn.Y");
-            double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+                // Remove the player from game and lobby lists
+                plugin.gamePlayers.remove(player);
+                lobbyPlayers.remove(player);
 
-            World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
-            if (world != null) {
-                Location lobbySpawn = new Location(world, x, y, z);
-                player.teleport(lobbySpawn);
-                player.sendMessage("§aYou have been returned to the lobby.");
-                Bukkit.getLogger().info("Teleported rejoining player " + player.getName() + " to the lobby.");
+                // Remove player from playermanager to allow clean rejoin
+                plugin.playermanager.remove(playerUUID);
+
+                // Teleport player to the lobby
+                teleportToLobby(player);
+                Bukkit.getLogger().info("Cleared game data and teleported rejoining player: " + player.getName());
+            } else {
+                Bukkit.getLogger().warning("Player data missing for game player: " + player.getName());
             }
+        } else {
+            // Log and ignore players who were not part of the game
+            Bukkit.getLogger().info("Player " + player.getName() + " was not in a game. Skipping teleport.");
         }
     }
+
+    /**
+     * Teleports a player to the lobby spawn.
+     */
+    private void teleportToLobby(Player player) {
+        String worldName = plugin.getConfig().getString("LobbySpawn.world");
+        double x = plugin.getConfig().getDouble("LobbySpawn.X");
+        double y = plugin.getConfig().getDouble("LobbySpawn.Y");
+        double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+
+        World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
+        if (world != null) {
+            Location lobbySpawn = new Location(world, x, y, z);
+            player.teleport(lobbySpawn);
+            player.sendMessage("§aYou have been returned to the lobby.");
+            Bukkit.getLogger().info("Teleported player " + player.getName() + " to the lobby.");
+        } else {
+            Bukkit.getLogger().severe("Lobby spawn world is invalid or not set: " + worldName);
+            player.sendMessage("§cThe lobby spawn location is invalid. Please contact an admin.");
+        }
+    }
+
 
 
     private void endGameAndTeleportAll() {
