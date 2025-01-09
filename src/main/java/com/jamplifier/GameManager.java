@@ -196,7 +196,6 @@ public class GameManager implements Listener {
      // Start tracking for the stay-still feature
         startStayStillTimer();
         gameTimer();
-        startGameMusic();
     }
     private void startGracePeriod(Player initialZombie) {
         int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
@@ -310,128 +309,6 @@ public class GameManager implements Listener {
         }
     }
     
-    
-    // HANDLING PLAYERS DISCONNECT/CRASH DURING GAME
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-        UUID playerUUID = player.getUniqueId();
-
-        Bukkit.getLogger().info("PlayerQuitEvent triggered for: " + player.getName());
-
-        PlayerManager playerData = plugin.playermanager.get(playerUUID);
-
-        if (playerData != null) {
-            // Restore helmet for zombies or tagged players
-            if (playerData.isIsdead() && playerData.getOriginalHelmet() != null) {
-                player.getInventory().setHelmet(playerData.getOriginalHelmet());
-                playerData.setOriginalHelmet(null);
-                plugin.getLogger().info("Restored helmet for player: " + player.getName());
-            }
-
-            // Handle initial zombie quit
-            if (player.equals(initialZombie)) {
-                Bukkit.broadcastMessage("§cThe initial zombie (" + player.getName() + ") has left the game. Ending the game.");
-                handleInitialZombieQuit(player);
-                return; // Exit early as the game ends
-            }
-
-            // Remove player from gamePlayers
-            plugin.gamePlayers.remove(player);
-            Bukkit.getLogger().info("Removed player: " + player.getName() + " from gamePlayers.");
-
-            // Remove player from playermanager
-            plugin.playermanager.remove(playerUUID);
-            Bukkit.getLogger().info("Removed player: " + player.getName() + " from playermanager.");
-
-            // Handle lobby players
-            if (isPlayerInLobby(player)) {
-                removePlayerFromLobby(player);
-                Bukkit.getLogger().info("Removed player: " + player.getName() + " from lobbyPlayers.");
-
-                // Check if players left in the lobby are below the required count
-                if (getLobbyPlayers().size() < getPlayerNeeded()) {
-                    Bukkit.broadcastMessage("§cNot enough players! The game will now reset.");
-                    resetGame();
-                    teleportAllToLobby(true);
-                }
-            }
-        }
-    }
-
-    public void handleInitialZombieQuit(Player zombie) {
-        Bukkit.broadcastMessage("§cThe initial zombie (" + zombie.getName() + ") has left the game. Returning all players to the lobby.");
-        Bukkit.getLogger().info("Handling initial zombie quit for player: " + zombie.getName());
-
-        cancelCountdown();
-
-        PlayerManager zombieData = plugin.playermanager.get(zombie.getUniqueId());
-        if (zombieData != null) {
-            if (zombieData.getOriginalHelmet() != null) {
-                zombie.getInventory().setHelmet(zombieData.getOriginalHelmet());
-                zombieData.setOriginalHelmet(null);
-            }
-            zombieData.setIngame(false);
-            zombieData.setIsdead(false);
-            Bukkit.getLogger().info("Reset state for zombie: " + zombie.getName());
-        }
-
-        Bukkit.getLogger().info("Calling teleportAllToLobby to reset players.");
-        teleportAllToLobby(true);
-
-        Bukkit.getLogger().info("Resetting game state.");
-        resetGame();
-    }
-
-
-    private void teleportAllToLobby(boolean resetStates) {
-        Bukkit.getLogger().info("Teleporting all players to the lobby. ResetStates: " + resetStates);
-
-        String worldName = plugin.getConfig().getString("LobbySpawn.world");
-        double x = plugin.getConfig().getDouble("LobbySpawn.X");
-        double y = plugin.getConfig().getDouble("LobbySpawn.Y");
-        double z = plugin.getConfig().getDouble("LobbySpawn.Z");
-
-        World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
-        if (world == null) {
-            Bukkit.getLogger().severe("Lobby spawn world is invalid or not set: " + worldName);
-            return;
-        }
-
-        Location lobbySpawn = new Location(world, x, y, z);
-
-        for (Player gamePlayer : new ArrayList<>(plugin.gamePlayers)) {
-            Bukkit.getLogger().info("Attempting to teleport player: " + gamePlayer.getName());
-
-            PlayerManager playerData = plugin.playermanager.get(gamePlayer.getUniqueId());
-            if (playerData != null) {
-                if (resetStates) {
-                    playerData.setIngame(false);
-                    playerData.setIsdead(false);
-
-                    if (playerData.getOriginalHelmet() != null) {
-                        gamePlayer.getInventory().setHelmet(playerData.getOriginalHelmet());
-                        playerData.setOriginalHelmet(null);
-                        Bukkit.getLogger().info("Restored helmet for player: " + gamePlayer.getName());
-                    }
-                }
-
-                // Perform the teleport
-                if (gamePlayer.isOnline()) {
-                    gamePlayer.teleport(lobbySpawn);
-                    gamePlayer.sendMessage("§aYou have been returned to the lobby.");
-                    Bukkit.getLogger().info("Successfully teleported player: " + gamePlayer.getName());
-                } else {
-                    Bukkit.getLogger().warning("Player " + gamePlayer.getName() + " is not online. Skipping teleport.");
-                }
-            }
-        }
-
-        if (resetStates) {
-            plugin.gamePlayers.clear();
-            Bukkit.getLogger().info("Cleared gamePlayers list after teleportation.");
-        }
-    }
 
 
 
@@ -578,7 +455,6 @@ public class GameManager implements Listener {
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
         cancelStayStillTimer(); // Add this to stop the timer when the game ends
-        stopGameMusic();
     }
  
     private void grantSurvivorRewards() {
@@ -638,6 +514,13 @@ public class GameManager implements Listener {
         // Turn the tagged player into a zombie
         taggedData.setIsdead(true);
         applySuspiciousStewBlindness(taggedPlayer);
+        taggedPlayer.sendTitle(
+        	    "§cYou've been Tagged!!", // Title
+        	    "§eTag others till theres no survivors!", // Subtitle
+        	    10, // Fade-in duration (ticks)
+        	    70, // Stay duration (ticks)
+        	    20  // Fade-out duration (ticks)
+        	);
      // After turning the player into a zombie
         stayStillWarnings.remove(taggedPlayer); // Reset warnings for the newly tagged zombie
 
@@ -774,7 +657,7 @@ public class GameManager implements Listener {
                             player.sendMessage(stayStillMessage);
                             turnIntoZombie(player); // Turn the player into a zombie
                             stayStillWarnings.remove(player); // Reset warnings
-                        } else if (stayStillTime - warnings <= 5) {
+                        } else if (stayStillTime - warnings <= 7) {
                             // Only send countdown messages in the last 5 seconds
                             player.sendMessage("§cMove or you'll turn into a zombie in " + (stayStillTime - warnings) + " seconds!");
                         }
@@ -844,44 +727,129 @@ public class GameManager implements Listener {
             endGame();
         }
     }
+   ///////////////////////////////////PLAYER QUIT EVENT////////////////////////////////////////
+ // HANDLING PLAYERS DISCONNECT/CRASH DURING GAME
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        UUID playerUUID = player.getUniqueId();
 
+        Bukkit.getLogger().info("PlayerQuitEvent triggered for: " + player.getName());
 
-///////////////////////////////////////////////MUSIC////////////////////////////////////////////////////////
-    private BukkitRunnable musicTask;
+        PlayerManager playerData = plugin.playermanager.get(playerUUID);
 
-    private void startGameMusic() {
-        if (!plugin.getConfig().getBoolean("GameMusic.Enabled", true)) {
-            return; // Exit if music is disabled
-        }
+        if (playerData != null) {
+            // Restore helmet for zombies or tagged players
+            if (playerData.isIsdead() && playerData.getOriginalHelmet() != null) {
+                player.getInventory().setHelmet(playerData.getOriginalHelmet());
+                playerData.setOriginalHelmet(null);
+                plugin.getLogger().info("Restored helmet for player: " + player.getName());
+            }
 
-        String sound = plugin.getConfig().getString("GameMusic.Sound", "minecraft:music_disc.pigstep");
-        float volume = (float) plugin.getConfig().getDouble("GameMusic.Volume", 1.0);
-        float pitch = (float) plugin.getConfig().getDouble("GameMusic.Pitch", 1.0);
-        int interval = plugin.getConfig().getInt("GameMusic.Interval", 60) * 20; // Convert seconds to ticks
+            // Handle initial zombie quit
+            if (player.equals(initialZombie)) {
+                Bukkit.broadcastMessage("§cThe initial zombie (" + player.getName() + ") has left the game. Ending the game.");
+                handleInitialZombieQuit(player);
+                return; // Exit early as the game ends
+            }
 
-        musicTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player player : plugin.gamePlayers) {
-                    player.playSound(player.getLocation(), sound, volume, pitch);
+            // Remove player from gamePlayers
+            plugin.gamePlayers.remove(player);
+            Bukkit.getLogger().info("Removed player: " + player.getName() + " from gamePlayers.");
+
+            // Remove player from playermanager
+            plugin.playermanager.remove(playerUUID);
+            Bukkit.getLogger().info("Removed player: " + player.getName() + " from playermanager.");
+
+            // Handle lobby players
+            if (isPlayerInLobby(player)) {
+                removePlayerFromLobby(player);
+                Bukkit.getLogger().info("Removed player: " + player.getName() + " from lobbyPlayers.");
+
+                // Check if players left in the lobby are below the required count
+                if (getLobbyPlayers().size() < getPlayerNeeded()) {
+                    Bukkit.broadcastMessage("§cNot enough players! The game will now reset.");
+                    resetGame();
+                    teleportAllToLobby(true);
                 }
             }
-        };
-
-        // Schedule the music to play repeatedly
-        musicTask.runTaskTimer(plugin, 0L, interval);
-    }
-
-    private void stopGameMusic() {
-        if (musicTask != null) {
-            musicTask.cancel();
-            musicTask = null;
         }
     }
 
+    public void handleInitialZombieQuit(Player zombie) {
+        Bukkit.broadcastMessage("§cThe initial zombie (" + zombie.getName() + ") has left the game. Returning all players to the lobby.");
+        Bukkit.getLogger().info("Handling initial zombie quit for player: " + zombie.getName());
+
+        cancelCountdown();
+
+        PlayerManager zombieData = plugin.playermanager.get(zombie.getUniqueId());
+        if (zombieData != null) {
+            if (zombieData.getOriginalHelmet() != null) {
+                zombie.getInventory().setHelmet(zombieData.getOriginalHelmet());
+                zombieData.setOriginalHelmet(null);
+            }
+            zombieData.setIngame(false);
+            zombieData.setIsdead(false);
+            Bukkit.getLogger().info("Reset state for zombie: " + zombie.getName());
+        }
+
+        Bukkit.getLogger().info("Calling teleportAllToLobby to reset players.");
+        teleportAllToLobby(true);
+
+        Bukkit.getLogger().info("Resetting game state.");
+        resetGame();
+    }
 
 
-    
+    private void teleportAllToLobby(boolean resetStates) {
+        Bukkit.getLogger().info("Teleporting all players to the lobby. ResetStates: " + resetStates);
+
+        String worldName = plugin.getConfig().getString("LobbySpawn.world");
+        double x = plugin.getConfig().getDouble("LobbySpawn.X");
+        double y = plugin.getConfig().getDouble("LobbySpawn.Y");
+        double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+
+        World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
+        if (world == null) {
+            Bukkit.getLogger().severe("Lobby spawn world is invalid or not set: " + worldName);
+            return;
+        }
+
+        Location lobbySpawn = new Location(world, x, y, z);
+
+        for (Player gamePlayer : new ArrayList<>(plugin.gamePlayers)) {
+            Bukkit.getLogger().info("Attempting to teleport player: " + gamePlayer.getName());
+
+            PlayerManager playerData = plugin.playermanager.get(gamePlayer.getUniqueId());
+            if (playerData != null) {
+                if (resetStates) {
+                    playerData.setIngame(false);
+                    playerData.setIsdead(false);
+
+                    if (playerData.getOriginalHelmet() != null) {
+                        gamePlayer.getInventory().setHelmet(playerData.getOriginalHelmet());
+                        playerData.setOriginalHelmet(null);
+                        Bukkit.getLogger().info("Restored helmet for player: " + gamePlayer.getName());
+                    }
+                }
+
+                // Perform the teleport
+                if (gamePlayer.isOnline()) {
+                    gamePlayer.teleport(lobbySpawn);
+                    gamePlayer.sendMessage("§aYou have been returned to the lobby.");
+                    Bukkit.getLogger().info("Successfully teleported player: " + gamePlayer.getName());
+                } else {
+                    Bukkit.getLogger().warning("Player " + gamePlayer.getName() + " is not online. Skipping teleport.");
+                }
+            }
+        }
+
+        if (resetStates) {
+            plugin.gamePlayers.clear();
+            Bukkit.getLogger().info("Cleared gamePlayers list after teleportation.");
+        }
+    }
+
 
 }
 

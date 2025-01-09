@@ -7,8 +7,6 @@ MaxPlayers: 20                # Maximum number of players in the game
 GameLength: 300               # Game length in seconds (5 minutes)
 AnnounceGameLength: true      # Announce game length at the start
 GracePeriod: 10               # Seconds during which zombies cannot tag
-ZombieSpeedBoost: true        # Zombies get a speed boost
-
 # Survivor rewards
 SurvivorReward:
   Enabled: true               # Enable or disable survivor rewards
@@ -38,24 +36,12 @@ GameSpawn:
 
 # Effects settings
 Effects:
-  BlindnessDuration: 1        # Duration of blindness effect in seconds
-  NightVisionDuration: 1      # Duration of night vision effect in seconds
-
-# Save Yourself settings
-SaveYourself:
-  Enabled: true               # Enable or disable "Save Yourself" mode
-  TimeLimit: 10               # Time in seconds for a tagged player to tag another player
-  ImmunityTime: 2             # Time in seconds of immunity after tagging
+  BlindnessDuration: 10        # Duration of blindness effect in seconds
+  NightVisionDuration: 10      # Duration of night vision effect in seconds
 
 # Stay Still Timer settings
 StayStillTimer:
   Enabled: true               # Enable or disable the stay-still timer
-  TimeLimit: 30               # Time in seconds before a stationary player is turned into a zombie
+  TimeLimit: 10               # Time in seconds before a stationary player is turned into a zombie
   Message: "§cYou stayed still for too long and turned into a zombie!"
 
-GameMusic:
-  Enabled: true
-  Sound: "minecraft:music_disc.pigstep" # Replace with desired sound
-  Volume: 1.0 # Volume level
-  Pitch: 1.0  # Pitch level
-  Interval: 60 # Interval in seconds between loops
