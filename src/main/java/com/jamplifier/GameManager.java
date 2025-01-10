@@ -35,6 +35,7 @@ public class GameManager implements Listener {
     private BukkitRunnable countdownTask = null;
     private boolean countdownRunning = false;
     private Player initialZombie;
+    int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
 
     public Player getInitialZombie() {
         return initialZombie;
@@ -183,7 +184,7 @@ public class GameManager implements Listener {
         plugin.gamePlayers = gamePlayers;
      
         for (Player gamePlayer : plugin.gamePlayers) {
-            gamePlayer.sendMessage("§aThe game has started! Avoid being tagged by the zombie.");
+            gamePlayer.sendMessage("§aThe game has started! The grace period will last " + gracePeriod + " seconds. Avoid being tagged by the zombie.");
             
         }
      // Announce game length if enabled in config
@@ -199,14 +200,14 @@ public class GameManager implements Listener {
         gameTimer();
     }
     private void startGracePeriod(Player initialZombie) {
-        int gracePeriod = plugin.getConfig().getInt("GracePeriod", 10);
-        
+
+
+        // Notify all players about the start of the grace period
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§eGrace period started! Zombies cannot tag players for " + gracePeriod + " seconds.");
         }
-        
 
-        // Prevent tagging during grace period
+        // Prevent tagging during grace period for the initial zombie
         initialZombie.setMetadata("gracePeriod", new FixedMetadataValue(plugin, true));
 
         // Schedule the end of the grace period
@@ -214,10 +215,15 @@ public class GameManager implements Listener {
             @Override
             public void run() {
                 initialZombie.removeMetadata("gracePeriod", plugin);
-                initialZombie.sendMessage("§cGrace period is over! Start tagging players.");
+
+                // Notify all players about the end of the grace period
+                for (Player gamePlayer : plugin.gamePlayers) {
+                    gamePlayer.sendMessage("§cGrace period is over! Zombies can now tag players!");
+                }
             }
-        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration
+        }.runTaskLater(plugin, gracePeriod * 20L); // Grace period duration in ticks
     }
+
     public void applySuspiciousStewBlindness(Player player) {
         int blindnessSeconds = plugin.getConfig().getInt("Effects.BlindnessDuration", 10); // Default: 10
         int nightVisionSeconds = plugin.getConfig().getInt("Effects.NightVisionDuration", 10); // Default: 10
@@ -652,14 +658,16 @@ public class GameManager implements Listener {
                         int warnings = stayStillWarnings.getOrDefault(player, 0) + 1;
                         stayStillWarnings.put(player, warnings);
 
-                        if (warnings >= stayStillTime) {
+                        int remainingTime = stayStillTime - warnings;
+
+                        if (remainingTime <= 0) {
                             Bukkit.getLogger().info("Player " + player.getName() + " has stayed still for too long!");
                             player.sendMessage(stayStillMessage);
                             turnIntoZombie(player); // Turn the player into a zombie
                             stayStillWarnings.remove(player); // Reset warnings
-                        } else if (stayStillTime - warnings <= 7) {
-                            // Only send countdown messages in the last 5 seconds
-                            player.sendMessage("§cMove or you'll turn into a zombie in " + (stayStillTime - warnings) + " seconds!");
+                        } else if (remainingTime <= 7) {
+                            // Send countdown messages every second during the last 7 seconds
+                            player.sendMessage("§cMove or you'll turn into a zombie in §e" + remainingTime + " seconds!");
                         }
                     } else {
                         // Player moved, reset warnings
@@ -672,6 +680,7 @@ public class GameManager implements Listener {
             }
         }.runTaskTimer(plugin, 0L, 20L); // Runs every second
     }
+
 
 
 
@@ -851,17 +860,35 @@ public class GameManager implements Listener {
 
     ///////////////////////HELMET RESTORING
     private void saveHelmet(Player player, PlayerManager playerData) {
+        // Save the current helmet if it exists
         if (player.getInventory().getHelmet() != null) {
             playerData.setOriginalHelmet(player.getInventory().getHelmet());
+        } else {
+            // Save a placeholder indicating no original helmet
+            playerData.setOriginalHelmet(null);
         }
+        // Set the zombie helmet
         player.getInventory().setHelmet(new ItemStack(Material.matchMaterial(
                 plugin.getConfig().getString("HeadItem.Type", "ZOMBIE_HEAD"))));
     }
+
+    
+    
+    
+    
     private void restoreHelmet(Player player, PlayerManager playerData) {
-        if (playerData != null && playerData.getOriginalHelmet() != null) {
-            player.getInventory().setHelmet(playerData.getOriginalHelmet());
-            playerData.setOriginalHelmet(null); // Clear saved helmet
-            Bukkit.getLogger().info("Restored helmet for player: " + player.getName());
+        if (playerData != null) {
+            if (playerData.getOriginalHelmet() != null) {
+                // Restore the original helmet if it existed
+                player.getInventory().setHelmet(playerData.getOriginalHelmet());
+                Bukkit.getLogger().info("Restored helmet for player: " + player.getName());
+            } else {
+                // Clear the helmet if there was no original helmet
+                player.getInventory().setHelmet(null);
+                Bukkit.getLogger().info("Cleared zombie helmet for player with no original helmet: " + player.getName());
+            }
+            // Clear the saved original helmet
+            playerData.setOriginalHelmet(null);
         }
     }
 
