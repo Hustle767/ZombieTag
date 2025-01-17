@@ -461,6 +461,7 @@ public class GameManager implements Listener {
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
         cancelStayStillTimer(); // Add this to stop the timer when the game ends
+        
     }
  
     private void grantSurvivorRewards() {

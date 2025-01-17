@@ -7,6 +7,8 @@ MaxPlayers: 20                # Maximum number of players in the game
 GameLength: 300               # Game length in seconds (5 minutes)
 AnnounceGameLength: true      # Announce game length at the start
 GracePeriod: 10               # Seconds during which zombies cannot tag
+auto-rejoin: true
+
 # Survivor rewards
 SurvivorReward:
   Enabled: true               # Enable or disable survivor rewards
