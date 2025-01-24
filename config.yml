@@ -20,7 +20,7 @@ HeadItem:
 
 # Messages
 Messages:
-  ZombieWin: "§cZombies win! All players have been tagged."
+  ZombieWin: "§cZombies win! All players have been infected."
   SurvivorWin: "§aSurvivors win! You escaped the zombie apocalypse!"
 
 # Spawn locations

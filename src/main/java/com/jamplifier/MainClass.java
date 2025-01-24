@@ -55,9 +55,5 @@ public class MainClass extends JavaPlugin {
     public GameManager getGameManager() {
         return gameManager;
     }
-    public boolean isAutoRejoinEnabled() {
-        return getConfig().getBoolean("auto-rejoin", true);
-    }
-
-
+   
 }

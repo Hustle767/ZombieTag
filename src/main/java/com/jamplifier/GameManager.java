@@ -640,7 +640,11 @@ public class GameManager implements Listener {
         String stayStillMessage = plugin.getConfig().getString(
                 "StayStillTimer.Message", "§cYou stayed still for too long and turned into a zombie!");
 
+        Bukkit.getLogger().info("Starting stay-still timer for " + stayStillTime + " seconds.");
+
         new BukkitRunnable() {
+            final Map<Player, Integer> playerTimers = new HashMap<>();
+
             @Override
             public void run() {
                 for (Player player : new ArrayList<>(plugin.gamePlayers)) {
@@ -654,32 +658,34 @@ public class GameManager implements Listener {
                     Location currentLocation = player.getLocation();
                     Location lastLocation = lastLocationMap.get(player);
 
+                    // Check if the player is stationary
                     if (lastLocation != null && currentLocation.distanceSquared(lastLocation) < 0.01) {
-                        // Player hasn't moved significantly
-                        int warnings = stayStillWarnings.getOrDefault(player, 0) + 1;
-                        stayStillWarnings.put(player, warnings);
+                        int timeLeft = playerTimers.getOrDefault(player, stayStillTime);
 
-                        int remainingTime = stayStillTime - warnings;
+                        if (timeLeft > 0) {
+                            playerTimers.put(player, timeLeft - 1);
 
-                        if (remainingTime <= 0) {
+                            if (timeLeft <= 7) {
+                                // Broadcast countdown for the final seconds
+                                player.sendMessage("§cMove or you'll turn into a zombie in §e" + timeLeft + " seconds!");
+                            }
+                        } else {
+                            // Player stayed still for too long, turn them into a zombie
                             Bukkit.getLogger().info("Player " + player.getName() + " has stayed still for too long!");
                             player.sendMessage(stayStillMessage);
-                            turnIntoZombie(player); // Turn the player into a zombie
-                            stayStillWarnings.remove(player); // Reset warnings
-                        } else if (remainingTime <= 7) {
-                            // Send countdown messages every second during the last 7 seconds
-                            player.sendMessage("§cMove or you'll turn into a zombie in §e" + remainingTime + " seconds!");
+                            turnIntoZombie(player);
+                            playerTimers.remove(player); // Reset timer for the player
                         }
                     } else {
-                        // Player moved, reset warnings
-                        stayStillWarnings.remove(player);
+                        // Player moved, reset their timer
+                        playerTimers.remove(player);
                     }
 
-                    // Update last location
+                    // Update the player's last location
                     lastLocationMap.put(player, currentLocation.clone());
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Runs every second
+        }.runTaskTimer(plugin, 0L, 20L); // Schedule with 0L delay and 20 ticks per second
     }
 
 
