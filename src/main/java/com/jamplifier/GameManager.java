@@ -1,6 +1,10 @@
 package com.jamplifier;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,8 +27,11 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.io.BukkitObjectInputStream;
+import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import com.jamplifier.PlayerData.PlayerManager;
+import com.jamplifier.PlayerData.StatsManager;
 
 public class GameManager implements Listener {
 
@@ -138,7 +145,7 @@ public class GameManager implements Listener {
             zombieData.setIsdead(true);
 
             // Save and replace the current helmet
-            saveHelmet(initialZombie, zombieData);
+            saveHelmet(initialZombie);
 
 
             // Get the configured head item
@@ -402,31 +409,38 @@ public class GameManager implements Listener {
 
     public void endGame() {
         gameInProgress = false;
+
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§aThe game has ended!");
         }
-     // Count survivors
+
+        // Count survivors
         long survivorCount = plugin.playermanager.values().stream()
                 .filter(data -> data.isIngame() && !data.isIsdead())
                 .count();
 
-     // Fetch win messages from config
+        // Fetch win messages from config
         String zombieWinMessage = plugin.getConfig().getString("Messages.ZombieWin", "§cZombies win! All players have been tagged.");
         String survivorWinMessage = plugin.getConfig().getString("Messages.SurvivorWin", "§aSurvivors win! You escaped the zombie apocalypse!");
 
         if (survivorCount > 0) {
-        	for (Player gamePlayer : plugin.gamePlayers) {
+            for (Player gamePlayer : plugin.gamePlayers) {
                 gamePlayer.sendMessage(survivorWinMessage);
             }
+
+            // Update survivor stats
+            plugin.playermanager.values().stream()
+                    .filter(data -> data.isIngame() && !data.isIsdead())
+                    .forEach(data -> plugin.getStatsManager().updatePlayerStat(data.getUuid(), "survivals", 1));
+
             grantSurvivorRewards();
         } else {
-        	 for (Player gamePlayer : plugin.gamePlayers) {
-                 gamePlayer.sendMessage(zombieWinMessage);
-             }
+            for (Player gamePlayer : plugin.gamePlayers) {
+                gamePlayer.sendMessage(zombieWinMessage);
+            }
         }
 
         // Retrieve lobby spawn location
-
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
@@ -437,8 +451,8 @@ public class GameManager implements Listener {
             if (playerData != null && playerData.isIngame()) {
                 Player player = Bukkit.getPlayer(playerId);
                 if (player != null) {
-                	// Restore original helmet
-                    restoreHelmet(player, playerData);
+                    // Restore original helmet
+                    restoreHelmet(player);
 
                     // Teleport player to lobby
                     if (worldName != null && !worldName.isEmpty()) {
@@ -461,9 +475,8 @@ public class GameManager implements Listener {
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
         cancelStayStillTimer(); // Add this to stop the timer when the game ends
-        
     }
- 
+
     private void grantSurvivorRewards() {
         // Check if the feature is enabled
         if (!plugin.getConfig().getBoolean("SurvivorReward.Enabled", true)) {
@@ -490,6 +503,7 @@ public class GameManager implements Listener {
     
 
 ///////////////////////////////////////////PLAYER TAGGING FUNCTIONS ///////////////////////////////////////////
+
 
     @EventHandler
     public void onPlayerTag(EntityDamageByEntityEvent event) {
@@ -522,15 +536,13 @@ public class GameManager implements Listener {
         taggedData.setIsdead(true);
         applySuspiciousStewBlindness(taggedPlayer);
         taggedPlayer.sendTitle(
-        	    "§cYou've been Tagged!!", // Title
-        	    "§eTag others till theres no survivors!", // Subtitle
-        	    10, // Fade-in duration (ticks)
-        	    70, // Stay duration (ticks)
-        	    20  // Fade-out duration (ticks)
-        	);
-     // After turning the player into a zombie
+            "§cYou've been Tagged!!", // Title
+            "§eTag others till there are no survivors!", // Subtitle
+            10, // Fade-in duration (ticks)
+            70, // Stay duration (ticks)
+            20  // Fade-out duration (ticks)
+        );
         stayStillWarnings.remove(taggedPlayer); // Reset warnings for the newly tagged zombie
-
 
         // Save and replace helmet with configured item
         if (taggedPlayer.getInventory().getHelmet() != null) {
@@ -544,23 +556,34 @@ public class GameManager implements Listener {
         } else {
             Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
         }
+
+        // Broadcast tag message
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§c" + taggedPlayer.getName() + " has been tagged and turned into a zombie!");
-            taggedPlayer.sendActionBar("§c You have been tagged");
-            
+            taggedPlayer.sendActionBar("§cYou have been tagged");
         }
+
+        // Update tagging player's stats
+        plugin.statsManager.updatePlayerStat(taggingPlayer.getUniqueId(), "tags", 1);
 
         // Check if all players are zombies
         boolean allZombies = plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead);
         if (allZombies) {
-        	 for (Player gamePlayer : plugin.gamePlayers) {
-                 gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
-             }
+            for (Player gamePlayer : plugin.gamePlayers) {
+                gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
+            }
+
+            // Update survivals for all survivors before ending the game
+            plugin.playermanager.values().stream()
+                .filter(playerManager -> !playerManager.isIsdead())
+                .forEach(survivingPlayer -> plugin.statsManager.updatePlayerStat(survivingPlayer.getUuid(), "survivals", 1));
+
             endGame();
         }
 
         event.setCancelled(true);
     }
+
     public void applyTagEffect(Player player) {
         int blindnessSeconds = plugin.getConfig().getInt("Effects.BlindnessDuration", 10); // Default: 10
         int nightVisionSeconds = plugin.getConfig().getInt("Effects.NightVisionDuration", 10); // Default: 10
@@ -631,34 +654,38 @@ public class GameManager implements Listener {
     private final Map<Player, Integer> stayStillWarnings = new HashMap<>();
     private final Map<UUID, BukkitRunnable> stayStillTimers = new HashMap<>();
 
+    private BukkitRunnable stayStillTask;
+
     private void startStayStillTimer() {
         if (!plugin.getConfig().getBoolean("StayStillTimer.Enabled", true)) {
             return; // Exit if the stay-still feature is disabled
         }
 
-        int stayStillTime = plugin.getConfig().getInt("StayStillTimer.TimeLimit", 30); // Configurable time in seconds
+        int stayStillTime = plugin.getConfig().getInt("StayStillTimer.TimeLimit", 30);
         String stayStillMessage = plugin.getConfig().getString(
                 "StayStillTimer.Message", "§cYou stayed still for too long and turned into a zombie!");
 
         Bukkit.getLogger().info("Starting stay-still timer for " + stayStillTime + " seconds.");
 
-        new BukkitRunnable() {
+        // Cancel any existing task before starting a new one
+        if (stayStillTask != null) {
+            stayStillTask.cancel();
+        }
+
+        stayStillTask = new BukkitRunnable() {
             final Map<Player, Integer> playerTimers = new HashMap<>();
 
             @Override
             public void run() {
                 for (Player player : new ArrayList<>(plugin.gamePlayers)) {
-                    // Skip players who are already zombies
                     PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
                     if (playerData != null && playerData.isIsdead()) {
                         continue;
                     }
 
-                    // Get the player's current and last known locations
                     Location currentLocation = player.getLocation();
                     Location lastLocation = lastLocationMap.get(player);
 
-                    // Check if the player is stationary
                     if (lastLocation != null && currentLocation.distanceSquared(lastLocation) < 0.01) {
                         int timeLeft = playerTimers.getOrDefault(player, stayStillTime);
 
@@ -666,46 +693,38 @@ public class GameManager implements Listener {
                             playerTimers.put(player, timeLeft - 1);
 
                             if (timeLeft <= 7) {
-                                // Broadcast countdown for the final seconds
                                 player.sendMessage("§cMove or you'll turn into a zombie in §e" + timeLeft + " seconds!");
                             }
                         } else {
-                            // Player stayed still for too long, turn them into a zombie
                             Bukkit.getLogger().info("Player " + player.getName() + " has stayed still for too long!");
                             player.sendMessage(stayStillMessage);
                             turnIntoZombie(player);
-                            playerTimers.remove(player); // Reset timer for the player
+                            playerTimers.remove(player);
                         }
                     } else {
-                        // Player moved, reset their timer
                         playerTimers.remove(player);
                     }
 
-                    // Update the player's last location
                     lastLocationMap.put(player, currentLocation.clone());
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Schedule with 0L delay and 20 ticks per second
+        };
+
+        stayStillTask.runTaskTimer(plugin, 0L, 20L); // Schedule with 0L delay and 20 ticks per second
     }
 
 
-
-
-    public void stopStayStillTimer(Player player) {
-        UUID playerUUID = player.getUniqueId();
-        if (stayStillTimers.containsKey(playerUUID)) {
-            stayStillTimers.get(playerUUID).cancel();
-            stayStillTimers.remove(playerUUID);
-            Bukkit.getLogger().info("Stopped stay still timer for " + player.getName());
-        }
-    }
     private void cancelStayStillTimer() {
-        for (BukkitRunnable timer : stayStillTimers.values()) {
-            timer.cancel();
+        if (stayStillTask != null) {
+            stayStillTask.cancel();
+            stayStillTask = null;
+            Bukkit.getLogger().info("Global stay-still timer has been canceled.");
         }
-        stayStillTimers.clear();
-        Bukkit.getLogger().info("All stay-still timers have been canceled.");
+
+        // Clear tracking maps
+        lastLocationMap.clear();
     }
+
 
 
     private void turnIntoZombie(Player player) {
@@ -716,23 +735,30 @@ public class GameManager implements Listener {
             return;
         }
 
+        // Mark player as a zombie
         playerData.setIsdead(true);
-        applySuspiciousStewBlindness(player);
-        saveHelmet(player, playerData);
 
+        // Stop tracking stay-still timer for the player
+        lastLocationMap.remove(player);
+        
+        // Apply blindness effect and save their helmet
+        applySuspiciousStewBlindness(player);
+        saveHelmet(player);
+
+        // Notify players
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§c" + player.getName() + " has been turned into a zombie!");
         }
 
+        // Check if all players are zombies
         if (plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead)) {
-        	
-        	for (Player gamePlayer : plugin.gamePlayers) {
-           gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
-            
-        	}
-        	endGame();
+            for (Player gamePlayer : plugin.gamePlayers) {
+                gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
+            }
+            endGame();
         }
     }
+
 
    ///////////////////////////////////PLAYER QUIT EVENT////////////////////////////////////////
  // HANDLING PLAYERS DISCONNECT/CRASH DURING GAME
@@ -746,7 +772,7 @@ public class GameManager implements Listener {
         PlayerManager playerData = plugin.playermanager.get(playerUUID);
 
         if (playerData != null) {
-            restoreHelmet(player, playerData);
+            restoreHelmet(player);
 
             if (player.equals(initialZombie)) {
             	for (Player gamePlayer : plugin.gamePlayers) {
@@ -786,7 +812,7 @@ public class GameManager implements Listener {
                 Bukkit.getLogger().info("Restoring state for rejoining player: " + player.getName());
 
                 // Restore helmet if applicable
-                restoreHelmet(player, playerData);
+                restoreHelmet(player);
 
                 // Reset player state
                 playerData.setIngame(false);
@@ -855,7 +881,7 @@ public class GameManager implements Listener {
             if (playerData != null) {
                 playerData.setIngame(false);
                 playerData.setIsdead(false);
-                restoreHelmet(gamePlayer, playerData);
+                restoreHelmet(gamePlayer);
             }
 
             gamePlayer.teleport(lobbySpawn);
@@ -866,38 +892,51 @@ public class GameManager implements Listener {
     }
 
     ///////////////////////HELMET RESTORING
-    private void saveHelmet(Player player, PlayerManager playerData) {
-        // Save the current helmet if it exists
-        if (player.getInventory().getHelmet() != null) {
-            playerData.setOriginalHelmet(player.getInventory().getHelmet());
+    private void saveHelmet(Player player) {
+        ItemStack currentHelmet = player.getInventory().getHelmet();
+        if (currentHelmet != null) {
+            // Serialize and save the helmet to the stats file via StatsManager
+            String serializedHelmet = plugin.getStatsManager().serializeHelmet(currentHelmet);
+            plugin.getStatsManager().updatePlayerStat(player.getUniqueId(), "originalHelmet", serializedHelmet);
+            Bukkit.getLogger().info("Saved helmet for player: " + player.getName() + " - " + currentHelmet.getType());
         } else {
-            // Save a placeholder indicating no original helmet
-            playerData.setOriginalHelmet(null);
+            // Save "none" if no helmet exists
+            plugin.getStatsManager().updatePlayerStat(player.getUniqueId(), "originalHelmet", "none");
+            Bukkit.getLogger().info("No helmet to save for player: " + player.getName());
         }
-        // Set the zombie helmet
+
+        // Replace the helmet with the zombie head
         player.getInventory().setHelmet(new ItemStack(Material.matchMaterial(
                 plugin.getConfig().getString("HeadItem.Type", "ZOMBIE_HEAD"))));
     }
 
-    
-    
-    
-    
-    private void restoreHelmet(Player player, PlayerManager playerData) {
-        if (playerData != null) {
-            if (playerData.getOriginalHelmet() != null) {
-                // Restore the original helmet if it existed
-                player.getInventory().setHelmet(playerData.getOriginalHelmet());
-                Bukkit.getLogger().info("Restored helmet for player: " + player.getName());
+
+    private void restoreHelmet(Player player) {
+        // Retrieve the serialized helmet from the stats file
+        String serializedHelmet = plugin.getStatsManager().getPlayerStat(player.getUniqueId(), "originalHelmet", "none");
+
+        if (!serializedHelmet.equals("none")) {
+            // Deserialize the helmet via StatsManager and apply it to the player
+            ItemStack originalHelmet = plugin.getStatsManager().deserializeHelmet(serializedHelmet);
+            if (originalHelmet != null) {
+                player.getInventory().setHelmet(originalHelmet);
+                Bukkit.getLogger().info("Restored helmet for player: " + player.getName() + " - " + originalHelmet.getType());
             } else {
-                // Clear the helmet if there was no original helmet
-                player.getInventory().setHelmet(null);
-                Bukkit.getLogger().info("Cleared zombie helmet for player with no original helmet: " + player.getName());
+                Bukkit.getLogger().severe("Failed to restore helmet for player: " + player.getName() + ". Deserialized helmet was null.");
             }
-            // Clear the saved original helmet
-            playerData.setOriginalHelmet(null);
+        } else {
+            // Clear the helmet slot if no original helmet was saved
+            player.getInventory().setHelmet(null);
+            Bukkit.getLogger().info("Cleared helmet for player: " + player.getName());
         }
+
+        // Clear the saved helmet data
+        plugin.getStatsManager().updatePlayerStat(player.getUniqueId(), "originalHelmet", "none");
     }
+
+
+
+
 
 
 }

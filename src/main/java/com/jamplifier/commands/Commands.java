@@ -3,6 +3,8 @@ package com.jamplifier.commands;
 import com.jamplifier.MainClass;
 import com.jamplifier.PlayerData.PlayerManager;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -95,6 +97,80 @@ public class Commands implements CommandExecutor {
             }
             return true;
         }
+        if (subCommand.equals("top")) {
+            if (player.hasPermission("zombietag.player")) {
+                player.sendMessage("§6--- Zombie Tag Leaderboard ---");
+
+                // Top 5 Taggers
+                List<Map.Entry<UUID, Integer>> taggersLeaderboard = plugin.getStatsManager().getLeaderboard("tags");
+                player.sendMessage("§aTop 5 Taggers:");
+                if (taggersLeaderboard.isEmpty()) {
+                    player.sendMessage("§7No data available.");
+                } else {
+                    for (int i = 0; i < Math.min(5, taggersLeaderboard.size()); i++) {
+                        Map.Entry<UUID, Integer> entry = taggersLeaderboard.get(i);
+                        String playerName = Bukkit.getOfflinePlayer(entry.getKey()).getName();
+                        int statValue = entry.getValue();
+                        player.sendMessage("§e" + (i + 1) + ". §a" + playerName + ": §b" + statValue);
+                    }
+                }
+
+                // Top 5 Survivors
+                List<Map.Entry<UUID, Integer>> survivorsLeaderboard = plugin.getStatsManager().getLeaderboard("survivals");
+                player.sendMessage("§aTop 5 Survivors:");
+                if (survivorsLeaderboard.isEmpty()) {
+                    player.sendMessage("§7No data available.");
+                } else {
+                    for (int i = 0; i < Math.min(5, survivorsLeaderboard.size()); i++) {
+                        Map.Entry<UUID, Integer> entry = survivorsLeaderboard.get(i);
+                        String playerName = Bukkit.getOfflinePlayer(entry.getKey()).getName();
+                        int statValue = entry.getValue();
+                        player.sendMessage("§e" + (i + 1) + ". §a" + playerName + ": §b" + statValue);
+                    }
+                }
+
+                player.sendMessage("§6-----------------------------");
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
+            }
+            return true;
+        }
+        if (subCommand.equalsIgnoreCase("stats")) {
+            if (player.hasPermission("zombietag.player")) {
+                if (args.length == 2) {
+                    Player target = Bukkit.getPlayer(args[1]);
+                    if (target == null) {
+                        player.sendMessage("§cPlayer not found!");
+                        return true;
+                    }
+
+                    UUID targetUUID = target.getUniqueId();
+                    int tags = Integer.parseInt(plugin.getStatsManager().getPlayerStat(targetUUID, "tags", "0"));
+                    int survivals = Integer.parseInt(plugin.getStatsManager().getPlayerStat(targetUUID, "survivals", "0"));
+
+                    player.sendMessage("§6--- Zombie Tag Stats for " + target.getName() + " ---");
+                    player.sendMessage("§aTags: §e" + tags);
+                    player.sendMessage("§aSurvivals: §e" + survivals);
+                    player.sendMessage("§6--------------------------------");
+                } else {
+                    // Show the stats of the command issuer
+                    UUID playerUUID = player.getUniqueId();
+                    int tags = Integer.parseInt(plugin.getStatsManager().getPlayerStat(playerUUID, "tags", "0"));
+                    int survivals = Integer.parseInt(plugin.getStatsManager().getPlayerStat(playerUUID, "survivals", "0"));
+
+                    player.sendMessage("§6--- Your Zombie Tag Stats ---");
+                    player.sendMessage("§aTags: §e" + tags);
+                    player.sendMessage("§aSurvivals: §e" + survivals);
+                    player.sendMessage("§6-------------------------------");
+                }
+            } else {
+                player.sendMessage("§cYou do not have permission to use this command!");
+            }
+            return true;
+        }
+
+
+
 
         // Invalid command
         player.sendMessage("§eInvalid command. Use /zombietag help for available commands.");
