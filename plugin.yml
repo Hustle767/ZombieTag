@@ -1,5 +1,5 @@
 name: ZombieTag
-version: 1.1
+version: 1.2
 main: com.jamplifier.MainClass
 api-version: 1.21
 description: A Zombie Tag plugin for FriendlySMP

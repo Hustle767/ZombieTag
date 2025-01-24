@@ -103,7 +103,7 @@ public class Commands implements CommandExecutor {
 
                 // Top 5 Taggers
                 List<Map.Entry<UUID, Integer>> taggersLeaderboard = plugin.getStatsManager().getLeaderboard("tags");
-                player.sendMessage("§aTop 5 Taggers:");
+                player.sendMessage("§cTop 5 Taggers:");
                 if (taggersLeaderboard.isEmpty()) {
                     player.sendMessage("§7No data available.");
                 } else {
@@ -117,7 +117,7 @@ public class Commands implements CommandExecutor {
 
                 // Top 5 Survivors
                 List<Map.Entry<UUID, Integer>> survivorsLeaderboard = plugin.getStatsManager().getLeaderboard("survivals");
-                player.sendMessage("§aTop 5 Survivors:");
+                player.sendMessage("§cTop 5 Survivors:");
                 if (survivorsLeaderboard.isEmpty()) {
                     player.sendMessage("§7No data available.");
                 } else {

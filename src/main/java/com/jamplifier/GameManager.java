@@ -147,7 +147,6 @@ public class GameManager implements Listener {
             // Save and replace the current helmet
             saveHelmet(initialZombie);
 
-
             // Get the configured head item
             String headItemType = plugin.getConfig().getString("HeadItem.Type", "PUMPKIN");
             Material headItemMaterial = Material.matchMaterial(headItemType);
@@ -156,30 +155,32 @@ public class GameManager implements Listener {
             } else {
                 Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
             }
-            
-            
-         // Apply simulated darkness effect
-          
-         
-            
+
+            // Apply simulated darkness effect
             applySuspiciousStewBlindness(initialZombie);
             initialZombie.teleport(gameSpawn);
             initialZombie.sendMessage("§cYou are the zombie! A grace period is active. Wait to start tagging!");
             initialZombie.sendActionBar("§cYou are the ZOMBIE!");
             initialZombie.sendTitle(
-            	    "§cYou are the ZOMBIE!!", // Title
-            	    "§eTag others till theres no survivors!", // Subtitle
-            	    10, // Fade-in duration (ticks)
-            	    70, // Stay duration (ticks)
-            	    20  // Fade-out duration (ticks)
-            	);
+                "§cYou are the ZOMBIE!!", // Title
+                "§eTag others till there are no survivors!", // Subtitle
+                10, // Fade-in duration (ticks)
+                70, // Stay duration (ticks)
+                20  // Fade-out duration (ticks)
+            );
 
             startGracePeriod(initialZombie);
         }
 
-
+        // Save helmets for all other players and teleport them
         for (Player player : gamePlayers) {
             if (player.equals(initialZombie)) continue;
+
+            // Save the helmet for each player without replacing it
+            String serializedHelmet = plugin.getStatsManager().serializeHelmet(player.getInventory().getHelmet());
+            plugin.getStatsManager().updatePlayerStat(player.getUniqueId(), "originalHelmet", serializedHelmet);
+
+            // Teleport to game spawn
             player.teleport(gameSpawn);
 
             PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
@@ -189,23 +190,24 @@ public class GameManager implements Listener {
         }
 
         plugin.gamePlayers = gamePlayers;
-     
+
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§aThe game has started! The grace period will last " + gracePeriod + " seconds. Avoid being tagged by the zombie.");
-            
         }
-     // Announce game length if enabled in config
+
+        // Announce game length if enabled in config
         if (plugin.getConfig().getBoolean("AnnounceGameLength", true)) {
             int gameLength = plugin.getConfig().getInt("GameLength", 300); // Default to 300 seconds
             for (Player gamePlayer : plugin.gamePlayers) {
                 gamePlayer.sendMessage("§eThe game will last for " + (gameLength / 60) + " minutes.");
             }
         }
-      
-     // Start tracking for the stay-still feature
+
+        // Start tracking for the stay-still feature
         startStayStillTimer();
         gameTimer();
     }
+
     private void startGracePeriod(Player initialZombie) {
 
 
@@ -446,13 +448,15 @@ public class GameManager implements Listener {
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
+        // Restore helmets and reset player states
         for (UUID playerId : plugin.playermanager.keySet()) {
             PlayerManager playerData = plugin.playermanager.get(playerId);
             if (playerData != null && playerData.isIngame()) {
                 Player player = Bukkit.getPlayer(playerId);
                 if (player != null) {
-                    // Restore original helmet
+                    // Restore the player's original helmet
                     restoreHelmet(player);
+
 
                     // Teleport player to lobby
                     if (worldName != null && !worldName.isEmpty()) {
@@ -544,12 +548,11 @@ public class GameManager implements Listener {
         );
         stayStillWarnings.remove(taggedPlayer); // Reset warnings for the newly tagged zombie
 
-        // Save and replace helmet with configured item
-        if (taggedPlayer.getInventory().getHelmet() != null) {
-            taggedData.setOriginalHelmet(taggedPlayer.getInventory().getHelmet());
-        }
-
-        String headItemType = plugin.getConfig().getString("HeadItem.Type", "PUMPKIN");
+     // Save the player's current helmet and replace it with the zombie helmet
+        plugin.getStatsManager().updatePlayerStat(taggedPlayer.getUniqueId(), "originalHelmet", 
+            plugin.getStatsManager().serializeHelmet(taggedPlayer.getInventory().getHelmet()));
+        
+        String headItemType = plugin.getConfig().getString("HeadItem.Type", "ZOMBIE_HEAD");
         Material headItemMaterial = Material.matchMaterial(headItemType);
         if (headItemMaterial != null) {
             taggedPlayer.getInventory().setHelmet(new ItemStack(headItemMaterial));
@@ -571,6 +574,7 @@ public class GameManager implements Listener {
         if (allZombies) {
             for (Player gamePlayer : plugin.gamePlayers) {
                 gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
+                
             }
 
             // Update survivals for all survivors before ending the game
