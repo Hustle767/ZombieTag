@@ -535,6 +535,13 @@ public class GameManager implements Listener {
             event.setCancelled(true);
             return;
         }
+     // Prevent tagging if tagging player is not a zombie
+        if (!taggingData.isIsdead()) { 
+            taggingPlayer.sendMessage("§cYou are a survivor and cannot tag players!");
+            event.setCancelled(true);
+            return;
+        }
+
 
         // Turn the tagged player into a zombie
         taggedData.setIsdead(true);
