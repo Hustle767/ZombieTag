@@ -4,7 +4,7 @@
 
     <groupId>com.jamplifier.zombietag</groupId>
     <artifactId>ZombieTag</artifactId>
-    <version>1.2</version>
+    <version>1.2.1</version>
     <name>ZombieTag</name>
     <description>A Zombie Tag plugin for Minecraft Paper 1.21.4</description>
 

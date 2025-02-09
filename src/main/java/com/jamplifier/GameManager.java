@@ -448,6 +448,9 @@ public class GameManager implements Listener {
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
+        World world = worldName != null && !worldName.isEmpty() ? plugin.getServer().getWorld(worldName) : null;
+        Location lobbySpawn = world != null ? new Location(world, x, y, z) : null;
+
         // Restore helmets and reset player states
         for (UUID playerId : plugin.playermanager.keySet()) {
             PlayerManager playerData = plugin.playermanager.get(playerId);
@@ -457,15 +460,11 @@ public class GameManager implements Listener {
                     // Restore the player's original helmet
                     restoreHelmet(player);
 
-
-                    // Teleport player to lobby
-                    if (worldName != null && !worldName.isEmpty()) {
-                        World world = plugin.getServer().getWorld(worldName);
-                        if (world != null) {
-                            player.teleport(new Location(world, x, y, z));
-                        } else {
-                            player.sendMessage("§cThe lobby world does not exist.");
-                        }
+                    // Teleport player to lobby if location exists
+                    if (lobbySpawn != null) {
+                        player.teleport(lobbySpawn);
+                    } else {
+                        player.sendMessage("§cThe lobby world does not exist.");
                     }
                 }
                 // Reset player state
@@ -475,10 +474,13 @@ public class GameManager implements Listener {
         }
 
         isStarted = false;
+
+        // Ensure all players have their helmets restored before clearing data
         plugin.gamePlayers.clear();
         lobbyPlayers.clear(); // Ensure lobby is emptied
         plugin.playermanager.clear(); // Clear all player data
-        cancelStayStillTimer(); // Add this to stop the timer when the game ends
+
+        cancelStayStillTimer(); // Stop the stay-still timer
     }
 
     private void grantSurvivorRewards() {
@@ -752,13 +754,24 @@ public class GameManager implements Listener {
         // Stop tracking stay-still timer for the player
         lastLocationMap.remove(player);
         
-        // Apply blindness effect and save their helmet
-        applySuspiciousStewBlindness(player);
+        // Save player's current helmet before replacing it
         saveHelmet(player);
+
+        // Apply blindness effect
+        applySuspiciousStewBlindness(player);
 
         // Notify players
         for (Player gamePlayer : plugin.gamePlayers) {
             gamePlayer.sendMessage("§c" + player.getName() + " has been turned into a zombie!");
+        }
+
+        // Replace helmet with the zombie head
+        String headItemType = plugin.getConfig().getString("HeadItem.Type", "ZOMBIE_HEAD");
+        Material headItemMaterial = Material.matchMaterial(headItemType);
+        if (headItemMaterial != null) {
+            player.getInventory().setHelmet(new ItemStack(headItemMaterial));
+        } else {
+            Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
         }
 
         // Check if all players are zombies
@@ -769,6 +782,7 @@ public class GameManager implements Listener {
             endGame();
         }
     }
+
 
 
    ///////////////////////////////////PLAYER QUIT EVENT////////////////////////////////////////

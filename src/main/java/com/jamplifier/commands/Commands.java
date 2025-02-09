@@ -183,6 +183,8 @@ public class Commands implements CommandExecutor {
         player.sendMessage("§eZombieTag Commands:");
         player.sendMessage("  §7/zombietag <join|leave>");
         player.sendMessage("  §7/zombietag help - Show this help message.");
+        player.sendMessage("  §7/zombietag top - View top players");
+        player.sendMessage("  §7/zombietag stats - View your statistics");
     }
     private void showHelpAdmin(Player player) {
         player.sendMessage("§eZombieTag Commands:");
