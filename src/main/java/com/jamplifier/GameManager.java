@@ -408,7 +408,6 @@ public class GameManager implements Listener {
 
 
 
-
     public void endGame() {
         gameInProgress = false;
 
@@ -448,8 +447,11 @@ public class GameManager implements Listener {
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
-        World world = worldName != null && !worldName.isEmpty() ? plugin.getServer().getWorld(worldName) : null;
-        Location lobbySpawn = world != null ? new Location(world, x, y, z) : null;
+        World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
+        Location lobbySpawn = (world != null) ? new Location(world, x, y, z) : null;
+
+        // Preserve players who were queued for the next game
+        List<Player> queuedPlayers = new ArrayList<>(lobbyPlayers);
 
         // Restore helmets and reset player states
         for (UUID playerId : plugin.playermanager.keySet()) {
@@ -475,13 +477,25 @@ public class GameManager implements Listener {
 
         isStarted = false;
 
-        // Ensure all players have their helmets restored before clearing data
-        plugin.gamePlayers.clear();
-        lobbyPlayers.clear(); // Ensure lobby is emptied
-        plugin.playermanager.clear(); // Clear all player data
+     // Remove only players who were in the game from playermanager (Keep queued players)
+        plugin.playermanager.entrySet().removeIf(entry -> {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            return player != null && plugin.gamePlayers.contains(player);
+        });
 
-        cancelStayStillTimer(); // Stop the stay-still timer
+        // Remove only players who were in the game from the lobby (Keep queued players)
+        lobbyPlayers.removeIf(player -> plugin.gamePlayers.contains(player));
+
+        // Ensure only queued players remain in the lobby
+        plugin.gamePlayers.clear();
+
+        // Stop all timers
+        cancelStayStillTimer();
+
+
     }
+
+    
 
     private void grantSurvivorRewards() {
         // Check if the feature is enabled
@@ -578,21 +592,24 @@ public class GameManager implements Listener {
         // Update tagging player's stats
         plugin.statsManager.updatePlayerStat(taggingPlayer.getUniqueId(), "tags", 1);
 
-        // Check if all players are zombies
-        boolean allZombies = plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead);
+        boolean allZombies = plugin.gamePlayers.stream().allMatch(player -> {
+            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+            return playerData != null && playerData.isIsdead();
+        });
+
         if (allZombies) {
             for (Player gamePlayer : plugin.gamePlayers) {
                 gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
-                
             }
 
-            // Update survivals for all survivors before ending the game
-            plugin.playermanager.values().stream()
-                .filter(playerManager -> !playerManager.isIsdead())
-                .forEach(survivingPlayer -> plugin.statsManager.updatePlayerStat(survivingPlayer.getUuid(), "survivals", 1));
+            if (countdownTask != null) {
+                countdownTask.cancel();
+                countdownTask = null;
+            }
 
             endGame();
         }
+
 
         event.setCancelled(true);
     }
@@ -774,14 +791,28 @@ public class GameManager implements Listener {
             Bukkit.getLogger().severe("Invalid HeadItem.Type in config.yml: " + headItemType);
         }
 
-        // Check if all players are zombies
-        if (plugin.playermanager.values().stream().allMatch(PlayerManager::isIsdead)) {
-            for (Player gamePlayer : plugin.gamePlayers) {
-                gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
-            }
-            endGame();
-        }
+        // **Updated: Ensure the game ends immediately if all players are zombies**
+        boolean allZombies = plugin.gamePlayers.stream()
+        	    .filter(p -> plugin.playermanager.containsKey(p.getUniqueId())) // Only check players with active game data
+        	    .allMatch(p -> {
+        	        PlayerManager data = plugin.playermanager.get(p.getUniqueId());
+        	        return data != null && data.isIsdead();
+        	    });
+
+        if (allZombies) {
+        	for (Player gamePlayer : plugin.gamePlayers) {
+        	        gamePlayer.sendMessage("§cAll players have been turned into zombies! The game will now end.");
+        	    }
+
+        	    if (countdownTask != null) {
+        	        countdownTask.cancel();
+        	        countdownTask = null;
+        	    }
+
+        	    endGame();
+        	}
     }
+
 
 
 

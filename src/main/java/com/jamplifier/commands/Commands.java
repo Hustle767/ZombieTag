@@ -256,32 +256,46 @@ public class Commands implements CommandExecutor {
     }
         // Handles /zombietag join
     private boolean handleJoin(Player player) {
+        UUID playerUUID = player.getUniqueId();
+
         // Check if the player is already in a game
-        if (plugin.playermanager.containsKey(player.getUniqueId())) {
-            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
+        if (plugin.playermanager.containsKey(playerUUID)) {
+            PlayerManager playerData = plugin.playermanager.get(playerUUID);
             if (playerData.isIngame()) {
                 player.sendMessage("§cYou are already in a game!");
                 return true;
             }
         }
 
-        // Check if the player is already in the lobby
-        if (plugin.playermanager.containsKey(player.getUniqueId())) {
-            PlayerManager playerData = plugin.playermanager.get(player.getUniqueId());
-            if (!playerData.isIngame() && !playerData.isIsdead()) {
-                player.sendMessage("§cYou are already in the lobby!");
-                return true;
-            }
+        if (plugin.gameManager.getLobbyPlayers().contains(player) && plugin.playermanager.containsKey(player.getUniqueId())) {
+            player.sendMessage("§cYou are already in the lobby queue!");
+            return true;
         }
 
-        // Check if a game is in progress
+
+        // If the game is in progress, queue the player for the next round
         if (plugin.gameManager.isGameInProgress()) {
-            player.sendMessage("§cA game is already in progress. Please wait for the next round.");
+            player.sendMessage("§eA game is already in progress. You will be placed in the lobby for the next round.");
+
+            // Check if the player is already stored in the player manager
+            if (!plugin.playermanager.containsKey(playerUUID)) {
+                PlayerManager playerData = new PlayerManager(playerUUID, false, false); // Not in game, not dead
+                plugin.playermanager.put(playerUUID, playerData);
+            }
+
+            // Teleport player to the lobby spawn
+            teleportToLobby(player);
+
+            // Add them to the lobby queue **only if they're not already in it**
+            if (!plugin.gameManager.getLobbyPlayers().contains(player)) {
+                plugin.gameManager.getLobbyPlayers().add(player);
+            }
+
             return true;
         }
 
         // Check if the lobby has reached max players
-        int currentPlayers = plugin.playermanager.size();
+        int currentPlayers = plugin.gameManager.getLobbyPlayers().size();
         int maxPlayers = plugin.getConfig().getInt("MaxPlayers", 20); // Default to 20 if not set
 
         if (currentPlayers >= maxPlayers) {
@@ -289,11 +303,21 @@ public class Commands implements CommandExecutor {
             return true;
         }
 
-        // Remove any old player data (if needed) and add them to the lobby
-        PlayerManager playerData = new PlayerManager(player.getUniqueId(), false, false); // false: not in game, not dead
-        plugin.playermanager.put(player.getUniqueId(), playerData); // Add to playermanager (lobby)
+        // Add the player to the player manager if they're not already stored
+        if (!plugin.playermanager.containsKey(playerUUID)) {
+            PlayerManager playerData = new PlayerManager(playerUUID, false, false); // Not in game, not dead
+            plugin.playermanager.put(playerUUID, playerData);
+        }
 
-        // Teleport player to the lobby spawn
+        // Teleport the player to the lobby spawn
+        teleportToLobby(player);
+
+        // Call lobbyWait function to start the countdown logic
+        plugin.gameManager.lobbyWait(player);
+
+        return true;
+    }
+    private void teleportToLobby(Player player) {
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
@@ -302,16 +326,10 @@ public class Commands implements CommandExecutor {
         if (worldName != null && !worldName.isEmpty()) {
             player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
             player.sendMessage("§aYou have been teleported to the lobby!");
-
-            // Call the lobbyWait function to handle the countdown logic
-            plugin.gameManager.lobbyWait(player); // Ensure this method is called to handle the countdown logic.
         } else {
             player.sendMessage("§cLobby spawn is not set.");
         }
-
-        return true;
     }
-
 
 
 
