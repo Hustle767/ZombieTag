@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
 
 public class StatsManager {
     private final Path statsFolder;
@@ -115,13 +116,14 @@ public class StatsManager {
         leaderboard.sort((a, b) -> b.getValue().compareTo(a.getValue()));
         return leaderboard;
     }
+
+
     public String serializeHelmet(ItemStack helmet) {
         if (helmet == null) return "none";
         try {
-            Map<String, Object> serialized = helmet.serialize();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ObjectOutputStream dataOutput = new ObjectOutputStream(outputStream);
-            dataOutput.writeObject(serialized);
+            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
+            dataOutput.writeObject(helmet.serialize()); // Serialize the ItemStack properly
             dataOutput.close();
             return Base64.getEncoder().encodeToString(outputStream.toByteArray());
         } catch (IOException e) {
@@ -130,19 +132,19 @@ public class StatsManager {
         }
     }
 
-
     public ItemStack deserializeHelmet(String serializedHelmet) {
         if (serializedHelmet.equals("none")) return null;
         try {
             ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(serializedHelmet));
-            ObjectInputStream dataInput = new ObjectInputStream(inputStream);
+            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
             @SuppressWarnings("unchecked")
             Map<String, Object> serialized = (Map<String, Object>) dataInput.readObject();
-            return ItemStack.deserialize(serialized);
+            return ItemStack.deserialize(serialized); // Deserialize properly
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
             return null;
         }
     }
+
 
 }
