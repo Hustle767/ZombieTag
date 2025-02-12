@@ -70,14 +70,36 @@ public class GameManager implements Listener {
     
     // Setting up game spawns and lobby spawns
     public void setupGame() {
-        this.gameSpawn = new Location(Bukkit.getServer().getWorld(plugin.getConfig().getString("GameSpawn.world")),
-                plugin.getConfig().getDouble("GameSpawn.X"), plugin.getConfig().getDouble("GameSpawn.Y"),
-                plugin.getConfig().getDouble("GameSpawn.Z"));
-        
-        this.lobbySpawn = new Location(Bukkit.getServer().getWorld(plugin.getConfig().getString("LobbySpawn.world")),
-                plugin.getConfig().getDouble("LobbySpawn.X"), plugin.getConfig().getDouble("LobbySpawn.Y"),
-                plugin.getConfig().getDouble("LobbySpawn.Z"));
+        World gameWorld = Bukkit.getServer().getWorld(plugin.getConfig().getString("GameSpawn.world"));
+        World lobbyWorld = Bukkit.getServer().getWorld(plugin.getConfig().getString("LobbySpawn.world"));
+
+        if (gameWorld != null) {
+            this.gameSpawn = new Location(
+                    gameWorld,
+                    plugin.getConfig().getDouble("GameSpawn.X"),
+                    plugin.getConfig().getDouble("GameSpawn.Y"),
+                    plugin.getConfig().getDouble("GameSpawn.Z"),
+                    (float) plugin.getConfig().getDouble("GameSpawn.Yaw", 0),
+                    (float) plugin.getConfig().getDouble("GameSpawn.Pitch", 0)
+            );
+        } else {
+            plugin.getLogger().severe("Game world is invalid!");
+        }
+
+        if (lobbyWorld != null) {
+            this.lobbySpawn = new Location(
+                    lobbyWorld,
+                    plugin.getConfig().getDouble("LobbySpawn.X"),
+                    plugin.getConfig().getDouble("LobbySpawn.Y"),
+                    plugin.getConfig().getDouble("LobbySpawn.Z"),
+                    (float) plugin.getConfig().getDouble("LobbySpawn.Yaw", 0),
+                    (float) plugin.getConfig().getDouble("LobbySpawn.Pitch", 0)
+            );
+        } else {
+            plugin.getLogger().severe("Lobby world is invalid!");
+        }
     }
+
     
     // Lobby wait function (player joins the lobby)
     public void lobbyWait(Player player) {
@@ -120,6 +142,8 @@ public class GameManager implements Listener {
         double x = plugin.getConfig().getDouble("GameSpawn.X");
         double y = plugin.getConfig().getDouble("GameSpawn.Y");
         double z = plugin.getConfig().getDouble("GameSpawn.Z");
+        float yaw = (float) plugin.getConfig().getDouble("GameSpawn.Yaw", 0); // Default yaw 0
+        float pitch = (float) plugin.getConfig().getDouble("GameSpawn.Pitch", 0); // Default pitch 0
         String worldName = plugin.getConfig().getString("GameSpawn.world");
 
         if (worldName == null || worldName.isEmpty()) {
@@ -133,7 +157,7 @@ public class GameManager implements Listener {
             return;
         }
 
-        Location gameSpawn = new Location(world, x, y, z);
+        Location gameSpawn = new Location(world, x, y, z, yaw, pitch);
 
         List<Player> gamePlayers = new ArrayList<>(lobbyPlayers);
 
@@ -445,10 +469,12 @@ public class GameManager implements Listener {
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+        float yaw = (float) plugin.getConfig().getDouble("LobbySpawn.Yaw", 0); // Default yaw 0
+        float pitch = (float) plugin.getConfig().getDouble("LobbySpawn.Pitch", 0); // Default pitch 0
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
         World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
-        Location lobbySpawn = (world != null) ? new Location(world, x, y, z) : null;
+        Location lobbySpawn = (world != null) ? new Location(world, x, y, z, yaw, pitch) : null;
 
         // Preserve players who were queued for the next game
         List<Player> queuedPlayers = new ArrayList<>(lobbyPlayers);
@@ -901,10 +927,12 @@ public class GameManager implements Listener {
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+        float yaw = (float) plugin.getConfig().getDouble("LobbySpawn.Yaw", 0); // Default yaw 0
+        float pitch = (float) plugin.getConfig().getDouble("LobbySpawn.Pitch", 0); // Default pitch 0
 
         World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
         if (world != null) {
-            Location lobbySpawn = new Location(world, x, y, z);
+            Location lobbySpawn = new Location(world, x, y, z, yaw, pitch);
             player.teleport(lobbySpawn);
             player.sendMessage("§aYou have been returned to the lobby.");
             Bukkit.getLogger().info("Teleported player " + player.getName() + " to the lobby.");
@@ -923,6 +951,8 @@ public class GameManager implements Listener {
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+        float yaw = (float) plugin.getConfig().getDouble("LobbySpawn.Yaw", 0); // Default yaw 0
+        float pitch = (float) plugin.getConfig().getDouble("LobbySpawn.Pitch", 0); // Default pitch 0
 
         World world = (worldName != null && !worldName.isEmpty()) ? plugin.getServer().getWorld(worldName) : null;
         if (world == null) {
@@ -930,7 +960,7 @@ public class GameManager implements Listener {
             return;
         }
 
-        Location lobbySpawn = new Location(world, x, y, z);
+        Location lobbySpawn = new Location(world, x, y, z, yaw, pitch);
 
         for (Player gamePlayer : new ArrayList<>(plugin.gamePlayers)) {
             PlayerManager playerData = plugin.playermanager.get(gamePlayer.getUniqueId());

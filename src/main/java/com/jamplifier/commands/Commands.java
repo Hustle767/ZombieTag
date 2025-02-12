@@ -208,15 +208,19 @@ public class Commands implements CommandExecutor {
             return false;
         }
 
+        // Save world, coordinates, yaw (left/right), and pitch (up/down)
         plugin.getConfig().set(path + ".world", loc.getWorld().getName());
         plugin.getConfig().set(path + ".X", loc.getX());
         plugin.getConfig().set(path + ".Y", loc.getY());
         plugin.getConfig().set(path + ".Z", loc.getZ());
+        plugin.getConfig().set(path + ".Yaw", loc.getYaw()); // Facing direction (left/right)
+        plugin.getConfig().set(path + ".Pitch", loc.getPitch()); // Looking up/down
         plugin.saveConfig();
 
         player.sendMessage("§a" + type.substring(0, 1).toUpperCase() + type.substring(1) + " spawn set!");
         return true;
     }
+
 
     private boolean handleTeleport(Player player, String type) {
         if (!player.hasPermission("zombietag.admin")) {
@@ -228,9 +232,11 @@ public class Commands implements CommandExecutor {
             double x = plugin.getConfig().getDouble("LobbySpawn.X");
             double y = plugin.getConfig().getDouble("LobbySpawn.Y");
             double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+            float yaw = (float) plugin.getConfig().getDouble("LobbySpawn.Yaw", 0); // Default yaw 0
+            float pitch = (float) plugin.getConfig().getDouble("LobbySpawn.Pitch", 0); // Default pitch 0
             String worldName = plugin.getConfig().getString("LobbySpawn.world");
             if (worldName != null && !worldName.isEmpty()) {
-                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z, yaw, pitch));
                 player.sendMessage("§aTeleported to the lobby spawn.");
             } else {
                 player.sendMessage("§cLobby spawn is not set.");
@@ -239,9 +245,11 @@ public class Commands implements CommandExecutor {
             double x = plugin.getConfig().getDouble("GameSpawn.X");
             double y = plugin.getConfig().getDouble("GameSpawn.Y");
             double z = plugin.getConfig().getDouble("GameSpawn.Z");
+            float yaw = (float) plugin.getConfig().getDouble("GameSpawn.Yaw", 0); // Default yaw 0
+            float pitch = (float) plugin.getConfig().getDouble("GameSpawn.Pitch", 0); // Default pitch 0
             String worldName = plugin.getConfig().getString("GameSpawn.world");
             if (worldName != null && !worldName.isEmpty()) {
-                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+                player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z, yaw, pitch));
                 player.sendMessage("§aTeleported to the game spawn.");
             } else {
                 player.sendMessage("§cGame spawn is not set.");
@@ -321,10 +329,12 @@ public class Commands implements CommandExecutor {
         double x = plugin.getConfig().getDouble("LobbySpawn.X");
         double y = plugin.getConfig().getDouble("LobbySpawn.Y");
         double z = plugin.getConfig().getDouble("LobbySpawn.Z");
+        float yaw = (float) plugin.getConfig().getDouble("LobbySpawn.Yaw"); // Retrieve yaw
+        float pitch = (float) plugin.getConfig().getDouble("LobbySpawn.Pitch"); // Retrieve pitch
         String worldName = plugin.getConfig().getString("LobbySpawn.world");
 
         if (worldName != null && !worldName.isEmpty()) {
-            player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z));
+            player.teleport(new Location(plugin.getServer().getWorld(worldName), x, y, z, yaw, pitch));
             player.sendMessage("§aYou have been teleported to the lobby!");
         } else {
             player.sendMessage("§cLobby spawn is not set.");
