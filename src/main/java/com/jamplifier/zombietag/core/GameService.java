@@ -14,7 +14,12 @@ import org.bukkit.scheduler.BukkitRunnable;
 import com.jamplifier.zombietag.core.PlayerRegistry;
 import com.jamplifier.zombietag.stats.ConfigStats;
 
+import net.kyori.adventure.title.Title;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
+import java.time.Duration;
 import java.util.*;
 
 public class GameService {
@@ -28,6 +33,9 @@ public class GameService {
     private final PlayerRegistry registry;
     private final ConfigStats stats;
     private StayStillService stayStill; 
+    private LobbyService lobby;
+    public void setLobbyService(LobbyService lobby) { this.lobby = lobby; }
+
     
     public GameService(MainClass plugin, Settings s, Spawns sp, GameState st,
             HelmetService h, EffectsService ef, RewardService rw,
@@ -54,6 +62,7 @@ this.registry = reg; this.stats = stats;
         // snapshot current lobby -> gamePlayers
         state.getGamePlayers().clear();
         state.getGamePlayers().addAll(state.getLobbyPlayers());
+        state.getLobbyPlayers().clear();  // BREAKING AUTO REJOIN
 
         // pick and mark initial zombie
         Player init = state.getGamePlayers().get((int) (Math.random() * state.getGamePlayers().size()));
@@ -71,13 +80,64 @@ this.registry = reg; this.stats = stats;
         PlayerState zd = registry.get(init.getUniqueId());
         if (zd != null) zd.setZombie(true);
         effects.applyBlindnessAndNightVision(init, settings.graceSeconds, settings.graceSeconds);
-        init.sendMessage("§cYou are the zombie! A grace period is active. Wait to start tagging!");
+     // Chat message
+        init.sendMessage(
+            Component.text("You are the zombie! A grace period is active. Wait to start tagging!")
+                    .color(NamedTextColor.RED)
+        );
 
-        // Announcements
-        state.getGamePlayers().forEach(p -> p.sendMessage("§aThe game has started! The grace period will last " + settings.graceSeconds + "s."));
+        // Title + subtitle
+        Title.Times times = Title.Times.times(
+            Duration.ofMillis(200),  // fade in
+            Duration.ofSeconds(3),   // stay
+            Duration.ofMillis(500)   // fade out
+        );
+
+        init.showTitle(Title.title(
+            Component.text("You are the ZOMBIE!!").color(NamedTextColor.RED),
+            Component.text("Tag others till there are no survivors!").color(NamedTextColor.YELLOW),
+            times
+        ));
+
+     // Resolve zombie + name
+        UUID zid = state.getInitialZombie();
+        Player zombie = (zid != null) ? Bukkit.getPlayer(zid) : null;
+        String zName = (zombie != null) ? zombie.getName() : "Unknown";
+
+        // Build one concise chat line
+        Component chat = Component.text("Game started! ", NamedTextColor.GREEN)
+            .append(Component.text("Zombie: ", NamedTextColor.GOLD))
+            .append(Component.text(zName, NamedTextColor.RED))
+            .append(Component.text(" • Grace: " + settings.graceSeconds + "s", NamedTextColor.GRAY));
+
         if (settings.announceGameLength) {
             int minutes = Math.max(1, settings.gameLengthSeconds / 60);
-            state.getGamePlayers().forEach(p -> p.sendMessage("§eThe game will last for " + minutes + " minutes."));
+            chat = chat.append(Component.text(" • Length: " + minutes + "m", NamedTextColor.GRAY));
+        }
+
+        // Send chat + per-player title
+        Title.Times times1 = Title.Times.times(
+            Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(500)
+        );
+
+        for (Player p : state.getGamePlayers()) {
+            p.sendMessage(chat);
+
+            if (zombie != null && p.getUniqueId().equals(zombie.getUniqueId())) {
+                // Zombie’s title
+                p.showTitle(Title.title(
+                    Component.text("You are the ZOMBIE!!", NamedTextColor.RED),
+                    Component.text("Wait " + settings.graceSeconds + "s, then TAG!", NamedTextColor.YELLOW),
+                    times1
+                ));
+            } else {
+                // Survivors’ title
+                p.showTitle(Title.title(
+                    Component.text(zName + " is the ZOMBIE!", NamedTextColor.RED),
+                    Component.text("Run! Grace " + settings.graceSeconds + "s", NamedTextColor.YELLOW),
+                    times1
+                ));
+            }
         }
 
         // end grace
@@ -146,6 +206,10 @@ this.registry = reg; this.stats = stats;
         if (state.getStayStillTask() != null) { state.getStayStillTask().cancel(); state.setStayStillTask(null); }
 
         state.setPhase(GamePhase.LOBBY);
+        //Auto rejoin lobby start
+        if (settings.autoRejoin && lobby != null) {
+            lobby.maybeStartCountdown();
+        }
     }
 
     public boolean areAllZombies() {

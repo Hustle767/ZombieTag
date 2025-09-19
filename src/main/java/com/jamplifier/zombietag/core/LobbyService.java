@@ -105,4 +105,14 @@ public class LobbyService {
         state.setLobbyCountdownTask(task);
         task.runTaskTimer(plugin, 0L, 20L);
     }
+    
+    public void maybeStartCountdown() {
+        var lobby = state.getLobbyPlayers();
+        if (state.getPhase() == GamePhase.LOBBY
+                && state.getLobbyCountdownTask() == null
+                && lobby.size() >= settings.playerNeeded) {
+            startLobbyCountdown();
+        }
+    }
+
 }

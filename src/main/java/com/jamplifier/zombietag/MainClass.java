@@ -77,6 +77,8 @@ public class MainClass extends JavaPlugin {
                             effectsService, helmetService, gameService, registry);
         gameService.setStayStillService(stayStillService);
         lobbyService  = new LobbyService(this, settings, spawns, gameState);
+        gameService.setLobbyService(lobbyService); 
+        
     }
 
     // Getters if you need them elsewhere
