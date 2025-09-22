@@ -29,6 +29,8 @@ public class MainClass extends JavaPlugin {
     private StayStillService stayStillService;
     private GameService gameService;
     private LobbyService lobbyService;
+    private com.jamplifier.zombietag.Util.Lang lang;
+    public com.jamplifier.zombietag.Util.Lang getLang() { return lang; }
 
     @Override
     public void onEnable() {
@@ -68,6 +70,8 @@ public class MainClass extends JavaPlugin {
 
     public void reloadAll() {
         reloadConfig();
+        if (lang == null) lang = new com.jamplifier.zombietag.Util.Lang(this);  // ⬅️
+        else lang.reload();   
 
         // Config
         settings = new Settings(getConfig());

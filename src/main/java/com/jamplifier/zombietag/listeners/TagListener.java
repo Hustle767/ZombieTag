@@ -10,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import static com.jamplifier.zombietag.Util.Lang.m;
 
 public class TagListener implements Listener {
     private final MainClass plugin;
@@ -59,7 +60,7 @@ this.stats = stats;
 
         // Survivors can't tag
         if (!td.isZombie()) {
-            tagger.sendMessage("§cYou are a survivor and cannot tag players!");
+        	plugin.getLang().send(tagger, "tag.survivor_cannot_tag");
             e.setDamage(0.0);
             e.setCancelled(true);
             return;
@@ -67,7 +68,7 @@ this.stats = stats;
 
         // Grace window
         if (System.currentTimeMillis() < state.getGraceEndsAtMs()) {
-            tagger.sendMessage("§cYou can’t tag during grace!");
+        	plugin.getLang().send(tagger, "tag.no_tag_during_grace");
             e.setDamage(0.0);
             e.setCancelled(true);
             return;
@@ -75,7 +76,7 @@ this.stats = stats;
 
         // Zombies can't tag zombies
         if (vd.isZombie()) {
-            tagger.sendMessage("§cYou cannot tag another zombie!");
+        	plugin.getLang().send(tagger, "tag.cannot_tag_zombie");
             e.setDamage(0.0);
             e.setCancelled(true);
             return;
@@ -87,15 +88,15 @@ this.stats = stats;
         helmets.giveZombieHelmet(tagged);
         stats.addInt(tagger.getUniqueId(), "tags", 1);
 
-        state.getGamePlayers().forEach(p -> p.sendMessage("§c" + tagged.getName() + " has been tagged and turned into a zombie!"));
-        tagged.sendActionBar("§cYou have been tagged");
+        plugin.getLang().send(state.getGamePlayers(), "tag.converted_broadcast", m("victim", tagged.getName()));
+        plugin.getLang().actionBar(tagged, "tag.converted_actionbar");
 
         // No knockback/damage
         e.setDamage(0.0);
         e.setCancelled(true);
 
         if (game.areAllZombies()) {
-            state.getGamePlayers().forEach(p -> p.sendMessage("§cAll players turned! Ending game."));
+            plugin.getLang().send(state.getGamePlayers(), "game.all_turned_end");
             game.endGame(false);
         }
     }

@@ -5,6 +5,8 @@ import com.jamplifier.zombietag.MainClass;
 import com.jamplifier.zombietag.config.Settings;
 import com.jamplifier.zombietag.config.Spawns;
 import com.jamplifier.zombietag.model.PlayerState;
+import static com.jamplifier.zombietag.Util.Lang.m;
+
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -74,8 +76,7 @@ this.registry = reg; this.stats = stats;
         if (gs == null) {
             Bukkit.getLogger().severe("[ZombieTag] Game spawn not set. Use /zt setspawn game");
             state.setPhase(GamePhase.LOBBY); // just revert; don't trigger end/reset
-            state.getLobbyPlayers().forEach(p ->
-                p.sendMessage("§cCannot start: game spawn is not set. Admin: /zt setspawn game"));
+            plugin.getLang().send(state.getLobbyPlayers(), "lobby.missing_game_spawn");
             return;
         }
 
@@ -170,7 +171,8 @@ this.registry = reg; this.stats = stats;
         // end grace
         new BukkitRunnable() {
             @Override public void run() {
-                state.getGamePlayers().forEach(p -> p.sendMessage("§cGrace period is over! Zombies can now tag players!"));
+            	plugin.getLang().send(state.getGamePlayers(), "game.grace_over");
+
             }
         }.runTaskLater(plugin, settings.graceSeconds * 20L);
 
@@ -187,8 +189,9 @@ this.registry = reg; this.stats = stats;
             @Override public void run() {
                 if (state.getPhase() != GamePhase.RUNNING) { cancel(); return; }
                 if (timeLeft <= 10 && timeLeft > 0) {
-                    state.getGamePlayers().forEach(p -> p.sendMessage("§eGame ends in " + timeLeft + " seconds."));
+                	plugin.getLang().send(state.getGamePlayers(), "game.ends_in", m("seconds", timeLeft));
                 }
+
                 if (timeLeft-- <= 0) { endGame(false); cancel(); }
             }
         });
@@ -205,14 +208,16 @@ this.registry = reg; this.stats = stats;
             .count();
 
         if (survivors > 0) {
-            state.getGamePlayers().forEach(p -> p.sendMessage("§aSurvivors win!"));
+        	plugin.getLang().send(state.getGamePlayers(), "game.survivors_win");
+
             // reward survivors
             state.getGamePlayers().forEach(p -> {
                 PlayerState d = registry.get(p.getUniqueId());
                 if (d != null && !d.isZombie()) rewards.rewardIfEnabled(p);
             });
         } else {
-            state.getGamePlayers().forEach(p -> p.sendMessage("§cZombies win! All players have been tagged."));
+        	plugin.getLang().send(state.getGamePlayers(), "game.zombies_win");
+
         }
 
         // Snapshot who finished this round (so we can optionally merge them into the lobby)
@@ -258,7 +263,8 @@ this.registry = reg; this.stats = stats;
             // Auto-rejoin OFF: do NOT add returned players; just inform them how to queue again
             for (Player p : returned) {
                 if (p != null && p.isOnline()) {
-                    p.sendMessage("§7Game over! Use §a/zombietag join§7 to queue again.");
+                	plugin.getLang().send(p, "end.queue_hint");
+
                 }
             }
         }

@@ -1,0 +1,37 @@
+# Color codes use &: &7, &a, etc.
+prefix: "&7[&aZombieTag&7] "
+
+lobby:
+  joined: "&a{player} joined! &7(&f{count}&7/&f{max}&7)"
+  already_in: "&eYou’re already in the lobby. &7(&f{count}&7/&f{max}&7)"
+  full: "&cThe lobby is full! Please wait for the next round."
+  waiting: "&eWaiting for &f{needed}&e more player{plural}..."
+  countdown_tick: "&eStarting in &f{seconds}&e seconds..."
+  countdown_canceled: "&cNot enough players! Countdown canceled."
+  returned: "&aYou have been returned to the lobby."
+  blocked_while_running: "&cA game is currently running. Please wait for the next round."
+  already_in_round: "&eYou’re already in an active round!"
+  countdown_running: "&eCountdown is already running…"
+  left: "&cYou have left the lobby!"
+  count: "&7There are now &f{count}&7/&f{max}&7 players in the lobby."
+  not_in: "&cYou are not in the lobby."
+  missing_game_spawn: "&cCannot start: game spawn is not set. Admin: /zt setspawn game"
+  # optional debug (used by maybeStartCountdown)
+  debug_waiting: "&7[dbg] Waiting: {count}/{need} players"
+
+tag:
+  survivor_cannot_tag: "&cYou are a survivor and cannot tag players!"
+  no_tag_during_grace: "&cYou can’t tag during grace!"
+  cannot_tag_zombie: "&cYou cannot tag another zombie!"
+  converted_broadcast: "&c{victim} has been tagged and turned into a zombie!"
+  converted_actionbar: "&cYou have been tagged"
+
+game:
+  grace_over: "&cGrace period is over! Zombies can now tag players!"
+  ends_in: "&eGame ends in &f{seconds}&e seconds."
+  survivors_win: "&aSurvivors win!"
+  zombies_win: "&cZombies win! All players have been tagged."
+  all_turned_end: "&cAll players turned! Ending game."
+
+end:
+  queue_hint: "&7Game over! Use &a/zombietag join&7 to queue again."
