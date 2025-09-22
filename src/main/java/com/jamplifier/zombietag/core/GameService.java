@@ -72,8 +72,10 @@ this.registry = reg; this.stats = stats;
 
         Location gs = spawns.game();
         if (gs == null) {
-            Bukkit.getLogger().severe("Game spawn invalid!");
-            endGame(true);
+            Bukkit.getLogger().severe("[ZombieTag] Game spawn not set. Use /zt setspawn game");
+            state.setPhase(GamePhase.LOBBY); // just revert; don't trigger end/reset
+            state.getLobbyPlayers().forEach(p ->
+                p.sendMessage("§cCannot start: game spawn is not set. Admin: /zt setspawn game"));
             return;
         }
 
@@ -213,11 +215,11 @@ this.registry = reg; this.stats = stats;
             state.getGamePlayers().forEach(p -> p.sendMessage("§cZombies win! All players have been tagged."));
         }
 
-        // Snapshot who finished this round (so we can rebuild the lobby list)
+        // Snapshot who finished this round (so we can optionally merge them into the lobby)
         List<Player> returned = new ArrayList<>(state.getGamePlayers());
 
-        // restore helmets + teleport
-        Location ls = spawns.lobby(); // same as before
+        // Restore helmets + teleport everyone to lobby spawn
+        Location ls = spawns.lobby();
         for (Player p : returned) {
             helmets.restoreHelmet(p);
             if (ls != null) p.teleport(ls);
@@ -225,40 +227,53 @@ this.registry = reg; this.stats = stats;
             if (pm != null) { pm.setIngame(false); pm.setZombie(false); }
         }
 
-     // clear game state
+        // Clear game state
         state.getGamePlayers().clear();
         state.setInitialZombie(null);
 
-        // stop timers
+        // Stop timers
         if (state.getGameTimerTask() != null) { state.getGameTimerTask().cancel(); state.setGameTimerTask(null); }
         if (state.getStayStillTask() != null) { state.getStayStillTask().cancel(); state.setStayStillTask(null); }
 
         // Back to lobby phase
         state.setPhase(GamePhase.LOBBY);
 
-        // Always clear lobby list first
-        state.getLobbyPlayers().clear();
+        // ---- Preserve any players who queued during the game ----
+        // Clean lobby list: remove offline/null and de-dup by UUID (keep first occurrence)
+        state.getLobbyPlayers().removeIf(pl -> pl == null || !pl.isOnline());
+        {
+            java.util.Set<java.util.UUID> seen = new java.util.HashSet<>();
+            state.getLobbyPlayers().removeIf(pl -> !seen.add(pl.getUniqueId()));
+        }
 
-        // Re-queue only when auto-rejoin is enabled
-        if (settings.autoRejoin && lobby != null) {
-            returned.removeIf(p -> !p.isOnline());
-            state.getLobbyPlayers().addAll(returned);
-
-            // Clean any stale countdown ref
-            if (state.getLobbyCountdownTask() != null && state.getLobbyCountdownTask().isCancelled()) {
-                state.setLobbyCountdownTask(null);
+        // Merge returned players only when auto-rejoin is enabled
+        if (settings.autoRejoin) {
+            returned.removeIf(pl -> pl == null || !pl.isOnline());
+            for (Player pl : returned) {
+                if (state.getLobbyPlayers().stream().noneMatch(x -> x.getUniqueId().equals(pl.getUniqueId()))) {
+                    state.getLobbyPlayers().add(pl);
+                }
             }
-            // Start next tick (avoid race with teleports/titles)
-            Bukkit.getScheduler().runTask(plugin, lobby::maybeStartCountdown);
         } else {
-            // Auto-rejoin is OFF: do NOT add them to the lobby queue
+            // Auto-rejoin OFF: do NOT add returned players; just inform them how to queue again
             for (Player p : returned) {
                 if (p != null && p.isOnline()) {
                     p.sendMessage("§7Game over! Use §a/zombietag join§7 to queue again.");
                 }
             }
         }
+
+        // Clear stale countdown ref if any
+        if (state.getLobbyCountdownTask() != null && state.getLobbyCountdownTask().isCancelled()) {
+            state.setLobbyCountdownTask(null);
+        }
+
+        // Try to start/continue countdown next tick (safe no-op if below threshold or wrong phase)
+        if (lobby != null) {
+            Bukkit.getScheduler().runTask(plugin, lobby::maybeStartCountdown);
+        }
     }
+
 
     public boolean areAllZombies() {
         return state.getGamePlayers().stream().allMatch(p -> {

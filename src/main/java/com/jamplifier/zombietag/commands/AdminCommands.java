@@ -84,21 +84,28 @@ public class AdminCommands {
             return true;
         }
 
-        // Save location into config
-        Location loc = p.getLocation();
-        String path = type.equals("lobby") ? "LobbySpawn" : "GameSpawn";
-        plugin.getConfig().set(path + ".world", loc.getWorld().getName());
-        plugin.getConfig().set(path + ".X", loc.getX());
-        plugin.getConfig().set(path + ".Y", loc.getY());
-        plugin.getConfig().set(path + ".Z", loc.getZ());
-        plugin.getConfig().set(path + ".Yaw", loc.getYaw());
-        plugin.getConfig().set(path + ".Pitch", loc.getPitch());
+        // Save to v2 schema: spawns.lobby.* or spawns.game.*
+        var cfg = plugin.getConfig();
+        var loc = p.getLocation();
+        String base = "spawns." + type;
+        cfg.set(base + ".world", loc.getWorld().getName());
+        cfg.set(base + ".x", loc.getX());
+        cfg.set(base + ".y", loc.getY());
+        cfg.set(base + ".z", loc.getZ());
+        cfg.set(base + ".yaw", loc.getYaw());
+        cfg.set(base + ".pitch", loc.getPitch());
+
+        // Clean legacy keys so you don't end up with two blocks
+        cfg.set("LobbySpawn", null);
+        cfg.set("GameSpawn", null);
+
         plugin.saveConfig();
         plugin.getSpawns().reload(plugin.getConfig());
 
         p.sendMessage("§a" + Character.toUpperCase(type.charAt(0)) + type.substring(1) + " spawn set!");
         return true;
     }
+
 
     public boolean teleport(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
@@ -107,14 +114,14 @@ public class AdminCommands {
         String which = args[1].toLowerCase();
         switch (which) {
             case "lobby": {
-                Location ls = readSpawnFromConfig("LobbySpawn");
+                var ls = spawns.lobby();
                 if (ls == null) { p.sendMessage("§cLobby spawn not set or world missing."); return true; }
                 p.teleport(ls);
                 p.sendMessage("§aTeleported to lobby spawn.");
                 return true;
             }
             case "game": {
-                Location gs = readSpawnFromConfig("GameSpawn");
+                var gs = spawns.game();
                 if (gs == null) { p.sendMessage("§cGame spawn not set or world missing."); return true; }
                 p.teleport(gs);
                 p.sendMessage("§aTeleported to game spawn.");
@@ -125,6 +132,7 @@ public class AdminCommands {
                 return true;
         }
     }
+
     public boolean info(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
 

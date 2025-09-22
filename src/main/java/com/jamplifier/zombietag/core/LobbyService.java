@@ -127,10 +127,16 @@ public class LobbyService {
 
     
     public void maybeStartCountdown() {
+    	if (spawns.game() == null) {
+    	    state.getLobbyPlayers().forEach(p ->
+    	        p.sendMessage("§cCannot start: game spawn is not set. Admin: /zt setspawn game"));
+    	    return;
+    	}
+
         var lobby = state.getLobbyPlayers();
         // only count online players
         lobby.removeIf(p -> p == null || !p.isOnline());
-
+        
         // If a previous countdown task exists but is cancelled, clear the reference
         if (state.getLobbyCountdownTask() != null && state.getLobbyCountdownTask().isCancelled()) {
             state.setLobbyCountdownTask(null);
