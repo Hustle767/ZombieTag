@@ -4,9 +4,9 @@ com\jamplifier\zombietag\stats\ConfigStats.class
 com\jamplifier\zombietag\core\HelmetService.class
 com\jamplifier\zombietag\core\Broadcasts.class
 com\jamplifier\zombietag\config\Settings.class
-com\jamplifier\zombietag\Util\TabCompleter.class
 com\jamplifier\zombietag\commands\PlayerCommands.class
 com\jamplifier\zombietag\MainClass.class
+com\jamplifier\zombietag\Util\CommandsTabCompleter.class
 com\jamplifier\zombietag\model\PlayerState.class
 com\jamplifier\zombietag\core\LobbyService.class
 com\jamplifier\zombietag\core\GameService$2.class

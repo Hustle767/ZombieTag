@@ -13,6 +13,7 @@ public class Settings {
     public int  maxPlayers;
     public int  lobbyCountdownSeconds;
     public boolean autoRejoin;
+    public boolean queueDuringGame;
 
     // game
     public int  gameLengthSeconds;
@@ -53,6 +54,7 @@ public class Settings {
         this.maxPlayers            = cfg.getInt("lobby.max_players", 20);
         this.lobbyCountdownSeconds = cfg.getInt("lobby.countdown_seconds", 10);
         this.autoRejoin            = cfg.getBoolean("lobby.auto_rejoin", true);
+        this.queueDuringGame = cfg.getBoolean("lobby.queue_during_game", true);
 
         // game
         this.gameLengthSeconds     = cfg.getInt("game.length_seconds", 300);

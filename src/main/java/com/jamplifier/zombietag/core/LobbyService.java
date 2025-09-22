@@ -22,6 +22,20 @@ public class LobbyService {
     public boolean inLobby(Player p) { return state.getLobbyPlayers().contains(p); }
 
     public void joinLobby(Player p) {
+       
+    	// Allow queuing during RUNNING/ENDING only if enabled
+    	if ((state.getPhase() == GamePhase.RUNNING || state.getPhase() == GamePhase.ENDING)
+    	        && !settings.queueDuringGame) {
+    	    p.sendMessage("§cA game is currently running. Please wait for the next round.");
+    	    return;
+    	}
+
+        // Already part of an active round?
+        if (state.getGamePlayers().contains(p)) {
+            p.sendMessage("§eYou’re already in an active round!");
+            return;
+        }
+
         var lobby = state.getLobbyPlayers();
 
         // full?
@@ -46,7 +60,7 @@ public class LobbyService {
         if (needed <= 0) {
             // threshold met
             if (state.getPhase() == GamePhase.LOBBY && state.getLobbyCountdownTask() == null) {
-                startLobbyCountdown();  // this should set phase=COUNTDOWN and set the task
+                startLobbyCountdown();  // sets phase=COUNTDOWN and starts the task
             } else if (state.isCountdown()) {
                 p.sendMessage("§eCountdown is already running…");
             }
@@ -61,6 +75,7 @@ public class LobbyService {
     }
 
 
+
     public void leaveLobby(Player p) {
         if (state.getLobbyPlayers().remove(p)) {
             p.sendMessage("§cYou have left the lobby!");
@@ -70,15 +85,20 @@ public class LobbyService {
     }
 
     private void startLobbyCountdown() {
-        state.setPhase(GamePhase.COUNTDOWN);
+        // defensive: kill stale reference if any
+        if (state.getLobbyCountdownTask() != null) {
+            try { state.getLobbyCountdownTask().cancel(); } catch (Throwable ignored) {}
+            state.setLobbyCountdownTask(null);
+        }
 
+        state.setPhase(GamePhase.COUNTDOWN);
         BukkitRunnable task = new BukkitRunnable() {
-            int seconds = settings.lobbyCountdownSeconds; // e.g. 10
+            int seconds = settings.lobbyCountdownSeconds;
 
             @Override public void run() {
                 var lobby = state.getLobbyPlayers();
+                lobby.removeIf(p -> p == null || !p.isOnline()); // keep fresh
 
-                // cancel if threshold lost
                 if (lobby.size() < settings.playerNeeded) {
                     lobby.forEach(p -> p.sendMessage("§cNot enough players! Countdown canceled."));
                     state.setPhase(GamePhase.LOBBY);
@@ -90,7 +110,6 @@ public class LobbyService {
                 if (seconds == 0) {
                     this.cancel();
                     state.setLobbyCountdownTask(null);
-                    // hand off to game
                     plugin.getGameService().startGameFromLobby();
                     return;
                 }
@@ -105,14 +124,28 @@ public class LobbyService {
         state.setLobbyCountdownTask(task);
         task.runTaskTimer(plugin, 0L, 20L);
     }
+
     
     public void maybeStartCountdown() {
         var lobby = state.getLobbyPlayers();
-        if (state.getPhase() == GamePhase.LOBBY
-                && state.getLobbyCountdownTask() == null
-                && lobby.size() >= settings.playerNeeded) {
+        // only count online players
+        lobby.removeIf(p -> p == null || !p.isOnline());
+
+        // If a previous countdown task exists but is cancelled, clear the reference
+        if (state.getLobbyCountdownTask() != null && state.getLobbyCountdownTask().isCancelled()) {
+            state.setLobbyCountdownTask(null);
+        }
+
+
+        int size = lobby.size();
+        int need = settings.playerNeeded;
+        if (size >= need) {
             startLobbyCountdown();
+        } else {
+            lobby.forEach(p -> p.sendMessage("§7[dbg] Waiting: " + size + "/" + need + " players"));
         }
     }
+
+
 
 }

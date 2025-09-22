@@ -43,31 +43,36 @@ public class AdminCommands {
     public boolean reload(Player p) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
 
-        // Full rebuild of services/state
-        plugin.reloadAll();
+        // 1) Unregister all existing listeners for this plugin
+        org.bukkit.event.HandlerList.unregisterAll(plugin);
 
-        // Rebind the command executor so it points at the fresh instances
-        if (plugin.getCommand("zombietag") != null) {
-            plugin.getCommand("zombietag").setExecutor(
-                new CommandsRouter(
-                    plugin,
-                    plugin.getLobbyService(),
-                    plugin.getGameService(),
-                    plugin.getStats(),
-                    plugin.getSettings(),
-                    plugin.getSpawns(),
-                    plugin.getRegistry()
-                )
+        // 2) Rebuild config & services (creates fresh Settings/GameState/Registry/etc.)
+        plugin.reloadAll();  // make sure this cancels old timers via gameState.clearAll()
+
+        // 3) Re-register listeners against the fresh instances
+        plugin.registerListeners();
+
+        // 4) Rebind command router + tab-completer to fresh instances
+        var root = plugin.getCommand("zombietag");
+        if (root != null) {
+            var router = new CommandsRouter(
+                plugin,
+                plugin.getLobbyService(),
+                plugin.getGameService(),
+                plugin.getStats(),
+                plugin.getSettings(),
+                plugin.getSpawns(),
+                plugin.getRegistry()
             );
+            root.setExecutor(router);
+            root.setTabCompleter(new com.jamplifier.zombietag.Util.CommandsTabCompleter(plugin));
         }
 
-        // Note: We are NOT re-registering listeners here to avoid double-registration.
-        // Listeners will still reference old instances until next server restart.
-        // If you want a full hot-reload, add an explicit unregister/re-register flow.
-
-        p.sendMessage("§aZombieTag configuration reloaded!");
+        p.sendMessage("§aZombieTag reloaded (listeners & commands rebound).");
         return true;
     }
+
+
 
     public boolean setspawn(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
@@ -120,6 +125,100 @@ public class AdminCommands {
                 return true;
         }
     }
+    public boolean info(Player p, String[] args) {
+        if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
+
+        String section = (args.length >= 2) ? args[1].toLowerCase() : "all";
+
+        // helpers
+        java.util.function.Function<Boolean,String> yn = b -> b ? "§aON" : "§cOFF";
+        java.util.function.Function<Integer,String> secs = v -> v + "s";
+        java.util.function.Function<org.bukkit.Location,String> fmtLoc = loc -> {
+            if (loc == null || loc.getWorld() == null) return "§7not set";
+            return String.format("§f%s§7: §f%.1f§7, §f%.1f§7, §f%.1f §8(yaw %.1f, pitch %.1f)",
+                    loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
+        };
+
+        // pull from your Settings (matches Settings.java exactly)
+        int     playerNeeded    = settings.playerNeeded;
+        int     maxPlayers      = settings.maxPlayers;
+        int     lobbyCountdown  = settings.lobbyCountdownSeconds;
+        boolean autoRejoin      = settings.autoRejoin;
+
+        int     gameLen         = settings.gameLengthSeconds;
+        int     graceSeconds    = settings.graceSeconds;
+        boolean announceLen     = settings.announceGameLength;
+
+        boolean rewardEnabled   = settings.rewardEnabled;
+        String  rewardCmd       = settings.rewardCommand;
+
+        String  helmetItem      = settings.headItemType;
+
+        int     blindSec        = settings.blindnessSeconds;
+        int     nightVisSec     = settings.nightVisionSeconds;
+
+        boolean stayStillOn     = settings.stayStillEnabled;
+        int     stayStillSec    = settings.stayStillSeconds;
+        String  stayStillMsg    = settings.stayStillMessage;
+
+        org.bukkit.Location lobbySpawn = spawns.lobby();
+        org.bukkit.Location gameSpawn  = spawns.game();
+
+        p.sendMessage("§8§m--------------------§r §aZombieTag §7Info §8§m--------------------");
+
+        // LOBBY
+        if (section.equals("all") || section.equals("lobby")) {
+            p.sendMessage("§bLobby");
+            p.sendMessage("  §7Needed: §f" + playerNeeded + "  §7Max: §f" + maxPlayers);
+            p.sendMessage("  §7Countdown: §f" + secs.apply(lobbyCountdown));
+            p.sendMessage("  §7Auto-rejoin: " + yn.apply(autoRejoin));
+            p.sendMessage("  §7Queue during game: " + yn.apply(settings.queueDuringGame));
+        }
+
+        // GAME
+        if (section.equals("all") || section.equals("game")) {
+            p.sendMessage("§bGame");
+            p.sendMessage("  §7Length: §f" + secs.apply(gameLen) + "  §7Grace: §f" + secs.apply(graceSeconds));
+            p.sendMessage("  §7Announce length: " + yn.apply(announceLen));
+        }
+
+        // REWARDS
+        if (section.equals("all") || section.equals("rewards")) {
+            p.sendMessage("§bRewards (Survivors)");
+            p.sendMessage("  §7Enabled: " + yn.apply(rewardEnabled));
+            p.sendMessage("  §7Command: §f" + (rewardCmd == null ? "§7none" : rewardCmd));
+        }
+
+        // ITEMS
+        if (section.equals("all") || section.equals("items")) {
+            p.sendMessage("§bItems");
+            p.sendMessage("  §7Zombie helmet: §f" + (helmetItem == null ? "§7default" : helmetItem));
+        }
+
+        // EFFECTS
+        if (section.equals("all") || section.equals("effects")) {
+            p.sendMessage("§bEffects at Start");
+            p.sendMessage("  §7Blindness: §f" + secs.apply(blindSec) + "  §7Night Vision: §f" + secs.apply(nightVisSec));
+        }
+
+        // STAY STILL
+        if (section.equals("all") || section.equals("stay") || section.equals("staystill")) {
+            p.sendMessage("§bStay-Still");
+            p.sendMessage("  §7Enabled: " + yn.apply(stayStillOn) + "  §7Time limit: §f" + secs.apply(stayStillSec));
+            p.sendMessage("  §7Message: §f" + (stayStillMsg == null ? "§7default" : stayStillMsg));
+        }
+
+        // SPAWNS
+        if (section.equals("all") || section.equals("spawns") || section.equals("spawn")) {
+            p.sendMessage("§bSpawns");
+            p.sendMessage("  §7Lobby: " + fmtLoc.apply(lobbySpawn));
+            p.sendMessage("  §7Game:  " + fmtLoc.apply(gameSpawn));
+        }
+
+        p.sendMessage("§8§m---------------------------------------------------------");
+        return true;
+    }
+
 
     // ---- helpers ----
 

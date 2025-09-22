@@ -6,6 +6,7 @@ import com.jamplifier.zombietag.config.Spawns;
 import com.jamplifier.zombietag.core.*;
 import com.jamplifier.zombietag.model.PlayerState;
 import com.jamplifier.zombietag.stats.ConfigStats;
+import com.jamplifier.zombietag.core.GamePhase;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
@@ -51,55 +52,70 @@ public class PlayerCommands {
     }
 
     public boolean join(Player p) {
-    	// already in lobby? stop the spam
-        if (plugin.getGameState().getLobbyPlayers().contains(p)) {
+        var phase = plugin.getGameState().getPhase();
+
+        // Already queued?
+        if (lobby.inLobby(p)) {
             p.sendMessage("§eYou’re already in the lobby. (" +
-                    plugin.getGameState().getLobbyPlayers().size() + "/" + settings.maxPlayers + ")");
-            return true;
-        }
-        // If a game is running, queue in lobby and TP
-        if (plugin.getGameState().isRunning()) {
-            p.sendMessage("§eA game is in progress. You’ve been added to the lobby for the next round.");
-            registry.getOrCreate(p.getUniqueId()); // ensure state exists
-            teleportToLobby(p);
-            if (!plugin.getGameState().getLobbyPlayers().contains(p)) {
-                plugin.getGameState().getLobbyPlayers().add(p);
-            }
+                plugin.getGameState().getLobbyPlayers().size() + "/" + settings.maxPlayers + ")");
             return true;
         }
 
-        // Check lobby capacity
-        int current = plugin.getGameState().getLobbyPlayers().size();
-        if (current >= settings.maxPlayers) {
+        // If a game is running/ending…
+        if (phase == GamePhase.RUNNING || phase == GamePhase.ENDING) {
+            if (!settings.queueDuringGame) {
+                p.sendMessage("§cA game is currently running. Please wait for the next round.");
+                return true;
+            }
+            // Queue for next round
+            if (plugin.getGameState().getLobbyPlayers().size() >= settings.maxPlayers) {
+                p.sendMessage("§cThe lobby is full! Please wait for the next round.");
+                return true;
+            }
+            var st = registry.getOrCreate(p.getUniqueId());
+            st.setIngame(false);
+            st.setZombie(false);
+
+            teleportToLobby(p);
+            // Let LobbyService handle adds/messages (it won’t start countdown while phase != LOBBY)
+            lobby.joinLobby(p);
+            p.sendMessage("§aYou’ve been added to the queue for the next round.");
+            return true;
+        }
+
+        // Normal (no game running): capacity → TP → join
+        if (plugin.getGameState().getLobbyPlayers().size() >= settings.maxPlayers) {
             p.sendMessage("§cThe lobby is full! Please wait for the next round.");
             return true;
         }
-
-        // Add to registry if not present
-        PlayerState st = registry.getOrCreate(p.getUniqueId());
+        var st = registry.getOrCreate(p.getUniqueId());
         st.setIngame(false);
         st.setZombie(false);
-
-        // TP & enter lobby flow
         teleportToLobby(p);
         lobby.joinLobby(p);
         return true;
     }
 
+
+
     public boolean leave(Player p) {
-        UUID id = p.getUniqueId();
-        PlayerState st = registry.get(id);
-        if (st == null || st.isIngame()) {
-            p.sendMessage("§cYou are not currently in the lobby (or you’re in a game).");
+        // If they’re in a running game, this command shouldn’t apply
+        if (plugin.getGameState().isRunning() && plugin.getGameState().getGamePlayers().contains(p)) {
+            p.sendMessage("§cYou’re in an active round; you can’t leave the lobby.");
             return true;
         }
-        plugin.getGameState().getLobbyPlayers().remove(p);
-        registry.remove(id);
 
-        // If countdown threshold dips below needed, you may want to cancel countdown here.
-        p.sendMessage("§aYou have left the lobby.");
+        // Must actually be queued in the lobby
+        if (!lobby.inLobby(p)) {
+            p.sendMessage("§cYou are not in the lobby.");
+            return true;
+        }
+
+        // Let LobbyService handle the removal + broadcast/message
+        lobby.leaveLobby(p);
         return true;
     }
+
 
     public boolean top(Player p) {
         p.sendMessage("§6--- Zombie Tag Leaderboard ---");

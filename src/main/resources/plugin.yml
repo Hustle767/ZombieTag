@@ -1,18 +1,22 @@
 name: ZombieTag
-version: 1.3.2
+version: 2.0
 main: com.jamplifier.zombietag.MainClass
 api-version: 1.21
 description: A Zombie Tag plugin for FriendlySMP
+
 commands:
   zombietag:
     description: ZombieTag plugin commands
-    usage: /zombietag <help|join|leave|setspawn|teleport|reload>
+    usage: "/zombietag help"
+    aliases: [zt]                    
     permission: zombietag.player
     permission-message: You do not have permission to use this command!
+
 permissions:
   zombietag.player:
-    description: Allows access to basic ZombieTag commands (join, leave, help)
+    description: Access to basic ZombieTag commands (help, join, leave, top, stats)
     default: true
+
   zombietag.admin:
-    description: Allows access to admin commands for ZombieTag (reload, setspawn, teleport)
+    description: Admin commands (reload, setspawn, teleport, info)
     default: op

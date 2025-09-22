@@ -35,19 +35,17 @@ public class MainClass extends JavaPlugin {
         getLogger().info("ZombieTag enabled");
         saveDefaultConfig();
         reloadAll();
-
-        // Listeners
-        getServer().getPluginManager().registerEvents(
-            new TagListener(this, gameState, effectsService, helmetService, gameService, registry, stats), this);
-        getServer().getPluginManager().registerEvents(
-            new InventoryGuardListener(settings, registry), this);
-        getServer().getPluginManager().registerEvents(
-            new WorldGuardListener(registry, gameState), this);
-        getServer().getPluginManager().registerEvents(
-            new SessionListener(this, gameState, spawns, helmetService, gameService, registry), this);
+        registerListeners();
 
         // Single root command that routes to player/admin handlers
         getCommand("zombietag").setExecutor(new CommandsRouter(this, lobbyService, gameService, stats, settings, spawns, registry));
+        var root = getCommand("zombietag");
+        if (root != null) {
+            var router = new CommandsRouter(this, lobbyService, gameService, stats, settings, spawns, registry);
+            root.setExecutor(router);
+            root.setTabCompleter(new com.jamplifier.zombietag.Util.CommandsTabCompleter(this));
+        }
+
     }
 
     @Override
@@ -55,6 +53,17 @@ public class MainClass extends JavaPlugin {
         getLogger().info("ZombieTag disabled");
         // Best-effort stop timers
         if (gameState != null) gameState.clearAll();
+    }
+    
+    public void registerListeners() {
+        getServer().getPluginManager().registerEvents(
+            new com.jamplifier.zombietag.listeners.TagListener(this, gameState, effectsService, helmetService, gameService, registry, stats), this);
+        getServer().getPluginManager().registerEvents(
+            new com.jamplifier.zombietag.listeners.InventoryGuardListener(settings, registry), this);
+        getServer().getPluginManager().registerEvents(
+            new com.jamplifier.zombietag.listeners.WorldGuardListener(registry, gameState), this);
+        getServer().getPluginManager().registerEvents(
+            new com.jamplifier.zombietag.listeners.SessionListener(this, gameState, spawns, helmetService, gameService, registry), this);
     }
 
     public void reloadAll() {

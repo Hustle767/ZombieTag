@@ -8,6 +8,7 @@ import com.jamplifier.zombietag.model.PlayerState;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -48,38 +49,62 @@ this.registry = reg; this.stats = stats;
     public void setStayStillService(StayStillService ss) { this.stayStill = ss; }
 
     public void startGameFromLobby() {
-    	
-    	if (state.isRunning()) return;
-    	state.setPhase(GamePhase.RUNNING);
-    	state.setGraceEndsAtMs(System.currentTimeMillis() + settings.graceSeconds * 1000L);
+        if (state.isRunning()) return;
 
 
+        // Defensive: stop any leftover lobby countdown
+        if (state.getLobbyCountdownTask() != null) {
+            try { state.getLobbyCountdownTask().cancel(); } catch (Throwable ignored) {}
+            state.setLobbyCountdownTask(null);
+        }
+        // Snapshot first
+        List<Player> snapshot = new ArrayList<>(state.getLobbyPlayers());
+        snapshot.removeIf(p -> p == null || !p.isOnline());         // safety
 
+        if (snapshot.isEmpty()) {
+            Bukkit.getLogger().warning("[ZombieTag] No players to start a game.");
+            state.setPhase(GamePhase.LOBBY);
+            return;
+        }
+
+        state.setPhase(GamePhase.RUNNING);
+        state.setGraceEndsAtMs(System.currentTimeMillis() + settings.graceSeconds * 1000L);
 
         Location gs = spawns.game();
-        if (gs == null) { Bukkit.getLogger().severe("Game spawn invalid!"); endGame(true); return; }
+        if (gs == null) {
+            Bukkit.getLogger().severe("Game spawn invalid!");
+            endGame(true);
+            return;
+        }
 
-        // snapshot current lobby -> gamePlayers
+        // gamePlayers := snapshot, lobby := empty (clean separation)
         state.getGamePlayers().clear();
-        state.getGamePlayers().addAll(state.getLobbyPlayers());
-        state.getLobbyPlayers().clear();  // BREAKING AUTO REJOIN
+        state.getGamePlayers().addAll(snapshot);
+        state.getLobbyPlayers().clear();
 
-        // pick and mark initial zombie
-        Player init = state.getGamePlayers().get((int) (Math.random() * state.getGamePlayers().size()));
-        state.setInitialZombie(init.getUniqueId());
-
-        // mark and prep everyone
+        // Reset everyone to a known state, heal + TP
         for (Player p : state.getGamePlayers()) {
-        	PlayerState pm = registry.get(p.getUniqueId());
-            if (pm != null) pm.setIngame(true);
+            PlayerState ps = registry.getOrCreate(p.getUniqueId());
+            ps.setIngame(true);
+            ps.setZombie(false);
+            healAndReset(p);
             p.teleport(gs);
         }
 
-        // initial zombie setup
+        // Pick zombie AFTER reset/teleport
+        Player init = state.getGamePlayers().get(
+                java.util.concurrent.ThreadLocalRandom.current().nextInt(state.getGamePlayers().size())
+        );
+        state.setInitialZombie(init.getUniqueId());
+
+        // Give zombie gear/effects + flag
         helmets.giveZombieHelmet(init);
-        PlayerState zd = registry.get(init.getUniqueId());
-        if (zd != null) zd.setZombie(true);
+        PlayerState zd = registry.getOrCreate(init.getUniqueId());
+        zd.setZombie(true);
         effects.applyBlindnessAndNightVision(init, settings.graceSeconds, settings.graceSeconds);
+
+        // ... (rest of your titles/chat/grace message) ...
+
      // Chat message
         init.sendMessage(
             Component.text("You are the zombie! A grace period is active. Wait to start tagging!")
@@ -173,7 +198,7 @@ this.registry = reg; this.stats = stats;
 
         // survivors?
         long survivors = state.getGamePlayers().stream()
-        	.map(p -> registry.get(p.getUniqueId()))
+            .map(p -> registry.get(p.getUniqueId()))
             .filter(d -> d != null && d.isIngame() && !d.isZombie())
             .count();
 
@@ -181,23 +206,26 @@ this.registry = reg; this.stats = stats;
             state.getGamePlayers().forEach(p -> p.sendMessage("§aSurvivors win!"));
             // reward survivors
             state.getGamePlayers().forEach(p -> {
-            	PlayerState d = registry.get(p.getUniqueId());
+                PlayerState d = registry.get(p.getUniqueId());
                 if (d != null && !d.isZombie()) rewards.rewardIfEnabled(p);
             });
         } else {
             state.getGamePlayers().forEach(p -> p.sendMessage("§cZombies win! All players have been tagged."));
         }
 
+        // Snapshot who finished this round (so we can rebuild the lobby list)
+        List<Player> returned = new ArrayList<>(state.getGamePlayers());
+
         // restore helmets + teleport
-        Location ls = forceToLobby ? spawns.lobby() : spawns.lobby();
-        for (Player p : new ArrayList<>(state.getGamePlayers())) {
+        Location ls = spawns.lobby(); // same as before
+        for (Player p : returned) {
             helmets.restoreHelmet(p);
             if (ls != null) p.teleport(ls);
             PlayerState pm = registry.get(p.getUniqueId());
             if (pm != null) { pm.setIngame(false); pm.setZombie(false); }
         }
 
-        // reset lists (keep lobby queue if you want: here we keep lobby players as-is)
+     // clear game state
         state.getGamePlayers().clear();
         state.setInitialZombie(null);
 
@@ -205,10 +233,30 @@ this.registry = reg; this.stats = stats;
         if (state.getGameTimerTask() != null) { state.getGameTimerTask().cancel(); state.setGameTimerTask(null); }
         if (state.getStayStillTask() != null) { state.getStayStillTask().cancel(); state.setStayStillTask(null); }
 
+        // Back to lobby phase
         state.setPhase(GamePhase.LOBBY);
-        //Auto rejoin lobby start
+
+        // Always clear lobby list first
+        state.getLobbyPlayers().clear();
+
+        // Re-queue only when auto-rejoin is enabled
         if (settings.autoRejoin && lobby != null) {
-            lobby.maybeStartCountdown();
+            returned.removeIf(p -> !p.isOnline());
+            state.getLobbyPlayers().addAll(returned);
+
+            // Clean any stale countdown ref
+            if (state.getLobbyCountdownTask() != null && state.getLobbyCountdownTask().isCancelled()) {
+                state.setLobbyCountdownTask(null);
+            }
+            // Start next tick (avoid race with teleports/titles)
+            Bukkit.getScheduler().runTask(plugin, lobby::maybeStartCountdown);
+        } else {
+            // Auto-rejoin is OFF: do NOT add them to the lobby queue
+            for (Player p : returned) {
+                if (p != null && p.isOnline()) {
+                    p.sendMessage("§7Game over! Use §a/zombietag join§7 to queue again.");
+                }
+            }
         }
     }
 
@@ -218,4 +266,17 @@ this.registry = reg; this.stats = stats;
             return d != null && d.isZombie();
         });
     }
+    private void healAndReset(Player p) {
+        p.setHealth(p.getMaxHealth());
+        p.setFoodLevel(20);
+        p.setSaturation(20f);
+        p.setExhaustion(0f);
+        p.setFireTicks(0);
+        p.setFallDistance(0);
+        p.setAbsorptionAmount(0.0);
+        p.setFreezeTicks(0);
+        p.getActivePotionEffects().forEach(pe -> p.removePotionEffect(pe.getType()));
+    }
+
+
 }
