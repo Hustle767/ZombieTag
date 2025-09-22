@@ -7,7 +7,8 @@ import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Super-lightweight language/messages loader.
@@ -23,18 +24,14 @@ public class Lang {
 
     public Lang(MainClass plugin) {
         this.plugin = plugin;
-        // Ensure data folder exists
         if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
 
-        // Lang file path: plugins/ZombieTag/lang.yml
         this.file = new File(plugin.getDataFolder(), "lang.yml");
 
-        // If a default is bundled in the jar at /lang.yml, copy it once
         if (!file.exists()) {
             try {
                 plugin.saveResource("lang.yml", false);
             } catch (Throwable ignore) {
-                // Not bundled — create an empty file
                 try { file.createNewFile(); } catch (IOException ignored) {}
             }
         }
@@ -47,7 +44,7 @@ public class Lang {
         this.prefix = color(yml.getString("prefix", ""));
     }
 
-    /** Get colored, formatted message by key (returns the key itself if missing). */
+    /** Core translate with Map placeholders. */
     public String tr(String key, Map<String, ?> placeholders) {
         String raw = yml.getString(key);
         if (raw == null) raw = key;
@@ -59,25 +56,40 @@ public class Lang {
         return color(prefix + raw);
     }
 
-    /** Varargs convenience: tr("lobby.joined", "player", name, "count", 3) */
+    /** Varargs convenience: tr("lobby.joined", "player", name, "count", 3) or tr("k", map). */
     public String tr(String key, Object... kv) {
+        if (kv != null && kv.length == 1 && kv[0] instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> map = (Map<String, ?>) kv[0];
+            return tr(key, map);
+        }
         return tr(key, m(kv));
     }
 
-    /** Send to one player. */
+    /** Send to one player (varargs or single-Map). */
     public void send(Player p, String key, Object... kv) {
         p.sendMessage(tr(key, kv));
     }
-
-    /** Send to many players. */
-    public void send(Iterable<? extends Player> players, String key, Object... kv) {
-        String msg = tr(key, kv);
-        for (Player p : players) p.sendMessage(msg);
+    public void send(Player p, String key, Map<String, ?> placeholders) {
+        p.sendMessage(tr(key, placeholders));
     }
 
-    /** Action bar helper. */
+    /** Send to many players (varargs or single-Map). */
+    public void send(Iterable<? extends Player> players, String key, Object... kv) {
+        String msg = tr(key, kv);
+        for (Player pl : players) pl.sendMessage(msg);
+    }
+    public void send(Iterable<? extends Player> players, String key, Map<String, ?> placeholders) {
+        String msg = tr(key, placeholders);
+        for (Player pl : players) pl.sendMessage(msg);
+    }
+
+    /** Action bar helper (varargs or single-Map). */
     public void actionBar(Player p, String key, Object... kv) {
         p.sendActionBar(tr(key, kv));
+    }
+    public void actionBar(Player p, String key, Map<String, ?> placeholders) {
+        p.sendActionBar(tr(key, placeholders));
     }
 
     /** Check if a key exists in lang.yml. */
@@ -85,13 +97,12 @@ public class Lang {
         return yml.isSet(key);
     }
 
-    /** Set (or seed) a value in-memory and save to disk. Useful for first-run defaults. */
+    /** Set (or seed) a value in-memory and save to disk. */
     public void setAndSave(String key, String value) {
         yml.set(key, value);
         saveSilently();
     }
 
-    /** Save lang.yml (called by setAndSave). */
     private void saveSilently() {
         try { yml.save(file); } catch (IOException e) {
             plugin.getLogger().warning("[Lang] Could not save lang.yml: " + e.getMessage());

@@ -1,6 +1,7 @@
 com\jamplifier\zombietag\core\GameState.class
 com\jamplifier\zombietag\core\StayStillService.class
 com\jamplifier\zombietag\stats\ConfigStats.class
+com\jamplifier\zombietag\Util\Lang.class
 com\jamplifier\zombietag\core\HelmetService.class
 com\jamplifier\zombietag\core\Broadcasts.class
 com\jamplifier\zombietag\config\Settings.class

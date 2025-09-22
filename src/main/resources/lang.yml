@@ -16,6 +16,9 @@ lobby:
   count: "&7There are now &f{count}&7/&f{max}&7 players in the lobby."
   not_in: "&cYou are not in the lobby."
   missing_game_spawn: "&cCannot start: game spawn is not set. Admin: /zt setspawn game"
+  teleported: "&aYou have been teleported to the lobby!"
+  missing_lobby_spawn: "&cLobby spawn is not set."
+  cant_leave_in_game: "&cYou’re in an active round; you can’t leave the lobby."
   # optional debug (used by maybeStartCountdown)
   debug_waiting: "&7[dbg] Waiting: {count}/{need} players"
 
@@ -35,3 +38,29 @@ game:
 
 end:
   queue_hint: "&7Game over! Use &a/zombietag join&7 to queue again."
+
+commands:
+  help:
+    header_admin: "&eZombieTag Commands:"
+    header_player: "&eZombieTag Commands:"
+    join: "  &7/zombietag join"
+    leave: "  &7/zombietag leave"
+    top: "  &7/zombietag top"
+    stats: "  &7/zombietag stats [player]"
+    setspawn: "  &7/zombietag setspawn <lobby|game> &8(admin)"
+    teleport: "  &7/zombietag teleport <lobby|game> &8(admin)"
+    reload: "  &7/zombietag reload &8(admin)"
+  top:
+    header: "&6--- Zombie Tag Leaderboard ---"
+    taggers_title: "&cTop 5 Taggers:"
+    survivors_title: "&cTop 5 Survivors:"
+    no_data: "&7No data available."
+    line: "&e{rank}. &a{name}: &b{value}"
+    footer: "&6-----------------------------"
+  stats:
+    header_self: "&6--- Your Zombie Tag Stats ---"
+    header_other: "&6--- Zombie Tag Stats for {name} ---"
+    tags: "&aTags: &e{value}"
+    survivals: "&aSurvivals: &e{value}"
+    footer: "&6-------------------------------"
+  player_not_found: "&cPlayer not found!"
