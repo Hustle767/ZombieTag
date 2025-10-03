@@ -84,7 +84,6 @@ public class AdminCommands {
             return true;
         }
 
-        // Save to v2 schema: spawns.lobby.* or spawns.game.*
         var cfg = plugin.getConfig();
         var loc = p.getLocation();
         String base = "spawns." + type;
@@ -95,7 +94,6 @@ public class AdminCommands {
         cfg.set(base + ".yaw", loc.getYaw());
         cfg.set(base + ".pitch", loc.getPitch());
 
-        // Clean legacy keys so you don't end up with two blocks
         cfg.set("LobbySpawn", null);
         cfg.set("GameSpawn", null);
 
@@ -232,18 +230,20 @@ public class AdminCommands {
 
     private Location readSpawnFromConfig(String basePath) {
         FileConfiguration cfg = plugin.getConfig();
+
         String worldName = cfg.getString(basePath + ".world", null);
         if (worldName == null || worldName.isEmpty()) return null;
 
         World w = plugin.getServer().getWorld(worldName);
         if (w == null) return null;
 
-        double x = cfg.getDouble(basePath + ".X");
-        double y = cfg.getDouble(basePath + ".Y");
-        double z = cfg.getDouble(basePath + ".Z");
-        float yaw = (float) cfg.getDouble(basePath + ".Yaw", 0.0);
-        float pitch = (float) cfg.getDouble(basePath + ".Pitch", 0.0);
+        double x = cfg.getDouble(basePath + ".x");
+        double y = cfg.getDouble(basePath + ".y");
+        double z = cfg.getDouble(basePath + ".z");
+        float yaw = (float) cfg.getDouble(basePath + ".yaw", 0.0);
+        float pitch = (float) cfg.getDouble(basePath + ".pitch", 0.0);
 
         return new Location(w, x, y, z, yaw, pitch);
     }
+
 }

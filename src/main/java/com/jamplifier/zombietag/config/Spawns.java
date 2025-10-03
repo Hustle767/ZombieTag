@@ -1,4 +1,3 @@
-// config/Spawns.java
 package com.jamplifier.zombietag.config;
 
 import org.bukkit.Bukkit;
@@ -8,21 +7,20 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 public class Spawns {
 
-    private FileConfiguration cfg;  // keep cfg so we can reload later
+    private FileConfiguration cfg;
     private Location lobby;
     private Location game;
 
     public Spawns(FileConfiguration cfg) {
         this.cfg = cfg;
-        this.lobby = load("LobbySpawn");
-        this.game  = load("GameSpawn");
+        this.lobby = load("spawns.lobby");
+        this.game  = load("spawns.game");
     }
 
-    /** Re-read spawn locations from the given config (or reuse the previous one if null). */
     public void reload(FileConfiguration newCfg) {
         if (newCfg != null) this.cfg = newCfg;
-        this.lobby = load("LobbySpawn");
-        this.game  = load("GameSpawn");
+        this.lobby = load("spawns.lobby");
+        this.game  = load("spawns.game");
     }
 
     private Location load(String base) {
@@ -34,11 +32,11 @@ public class Spawns {
         World w = Bukkit.getWorld(worldName);
         if (w == null) return null;
 
-        double x = cfg.getDouble(base + ".X");
-        double y = cfg.getDouble(base + ".Y");
-        double z = cfg.getDouble(base + ".Z");
-        float yaw = (float) cfg.getDouble(base + ".Yaw", 0.0);
-        float pitch = (float) cfg.getDouble(base + ".Pitch", 0.0);
+        double x = cfg.getDouble(base + ".x");
+        double y = cfg.getDouble(base + ".y");
+        double z = cfg.getDouble(base + ".z");
+        float yaw = (float) cfg.getDouble(base + ".yaw", 0.0);
+        float pitch = (float) cfg.getDouble(base + ".pitch", 0.0);
 
         return new Location(w, x, y, z, yaw, pitch);
     }

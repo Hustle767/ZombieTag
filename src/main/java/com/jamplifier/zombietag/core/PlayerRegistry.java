@@ -33,6 +33,28 @@ public class PlayerRegistry {
     public Collection<PlayerState> all() {
         return states.values();
     }
+    public List<UUID> getSurvivors() {
+        List<UUID> list = new ArrayList<>();
+        for (var entry : states.entrySet()) {
+            PlayerState ps = entry.getValue();
+            if (ps.isIngame() && !ps.isZombie()) {
+                list.add(entry.getKey());
+            }
+        }
+        return list;
+    }
+
+    public List<UUID> getZombies() {
+        List<UUID> list = new ArrayList<>();
+        for (var entry : states.entrySet()) {
+            PlayerState ps = entry.getValue();
+            if (ps.isIngame() && ps.isZombie()) {
+                list.add(entry.getKey());
+            }
+        }
+        return list;
+    }
+
 
     /** Reset round flags (ingame/zombie) for a set of participants */
     public void resetRoundFlags(Collection<UUID> participants) {

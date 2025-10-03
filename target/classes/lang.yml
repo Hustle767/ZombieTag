@@ -32,9 +32,15 @@ tag:
 game:
   grace_over: "&cGrace period is over! Zombies can now tag players!"
   ends_in: "&eGame ends in &f{seconds}&e seconds."
-  survivors_win: "&aSurvivors win!"
-  zombies_win: "&cZombies win! All players have been tagged."
   all_turned_end: "&cAll players turned! Ending game."
+  end:
+    survivors:
+      header: "&a&lSurvivors Win! &7({count} survived)"
+      entry: "  &f- {player}"
+    zombies:
+      header: "&c&lZombies Win! &7(All players infected)"
+      entry: "  &f- {player}"
+    none: "&7No winners this round."
 
 end:
   queue_hint: "&7Game over! Use &a/zombietag join&7 to queue again."

@@ -201,24 +201,52 @@ this.registry = reg; this.stats = stats;
     public void endGame(boolean forceToLobby) {
         state.setPhase(GamePhase.ENDING);
 
-        // survivors?
-        long survivors = state.getGamePlayers().stream()
-            .map(p -> registry.get(p.getUniqueId()))
-            .filter(d -> d != null && d.isIngame() && !d.isZombie())
-            .count();
+     // survivors & zombies lists for nice per-line output
+        List<Player> survivorsList = state.getGamePlayers().stream()
+            .filter(Objects::nonNull)
+            .filter(p -> {
+                var d = registry.get(p.getUniqueId());
+                return d != null && d.isIngame() && !d.isZombie();
+            })
+            .toList();
 
-        if (survivors > 0) {
-        	plugin.getLang().send(state.getGamePlayers(), "game.survivors_win");
+        List<Player> zombiesList = state.getGamePlayers().stream()
+            .filter(Objects::nonNull)
+            .filter(p -> {
+                var d = registry.get(p.getUniqueId());
+                return d != null && d.isIngame() && d.isZombie();
+            })
+            .toList();
 
-            // reward survivors
-            state.getGamePlayers().forEach(p -> {
-                PlayerState d = registry.get(p.getUniqueId());
-                if (d != null && !d.isZombie()) rewards.rewardIfEnabled(p);
-            });
+        if (!survivorsList.isEmpty()) {
+            // Header with count
+            plugin.getLang().send(state.getGamePlayers(), "game.end.survivors.header",
+                    Map.of("count", String.valueOf(survivorsList.size())));
+
+            // Each survivor on its own line
+            for (Player pl : survivorsList) {
+                plugin.getLang().send(state.getGamePlayers(), "game.end.survivors.entry",
+                        Map.of("player", pl.getName()));
+            }
+
+            // reward survivors (unchanged)
+            for (Player p : survivorsList) {
+                rewards.rewardIfEnabled(p);
+            }
+        } else if (!zombiesList.isEmpty()) {
+            // Header
+            plugin.getLang().send(state.getGamePlayers(), "game.end.zombies.header");
+
+            // Each zombie on its own line
+            for (Player pl : zombiesList) {
+                plugin.getLang().send(state.getGamePlayers(), "game.end.zombies.entry",
+                        Map.of("player", pl.getName()));
+            }
         } else {
-        	plugin.getLang().send(state.getGamePlayers(), "game.zombies_win");
-
+            // Edge case: nothing recorded as ingame (should be rare)
+            plugin.getLang().send(state.getGamePlayers(), "game.end.none");
         }
+
 
         // Snapshot who finished this round (so we can optionally merge them into the lobby)
         List<Player> returned = new ArrayList<>(state.getGamePlayers());
