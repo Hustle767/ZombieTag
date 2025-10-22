@@ -3,6 +3,7 @@ version: 2.0
 main: com.jamplifier.zombietag.MainClass
 api-version: 1.21
 description: A Zombie Tag plugin for FriendlySMP
+softdepend: [PlaceholderAPI]
 
 commands:
   zombietag:

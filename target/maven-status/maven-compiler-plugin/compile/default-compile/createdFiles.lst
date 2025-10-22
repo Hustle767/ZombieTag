@@ -1,12 +1,16 @@
+com\jamplifier\zombietag\stats\ConfigStats$Entry.class
 com\jamplifier\zombietag\core\GameState.class
 com\jamplifier\zombietag\core\StayStillService.class
 com\jamplifier\zombietag\stats\ConfigStats.class
 com\jamplifier\zombietag\Util\Lang.class
 com\jamplifier\zombietag\core\HelmetService.class
 com\jamplifier\zombietag\core\Broadcasts.class
+com\jamplifier\zombietag\Util\Placeholders$CacheItem.class
 com\jamplifier\zombietag\config\Settings.class
+com\jamplifier\zombietag\listeners\LobbyProtectionListener.class
 com\jamplifier\zombietag\commands\PlayerCommands.class
 com\jamplifier\zombietag\MainClass.class
+com\jamplifier\zombietag\stats\ConfigStats$LbCache.class
 com\jamplifier\zombietag\Util\CommandsTabCompleter.class
 com\jamplifier\zombietag\model\PlayerState.class
 com\jamplifier\zombietag\core\LobbyService.class
@@ -19,6 +23,7 @@ com\jamplifier\zombietag\listeners\WorldGuardListener.class
 com\jamplifier\zombietag\listeners\TagListener.class
 com\jamplifier\zombietag\core\LobbyService$1.class
 com\jamplifier\zombietag\core\GamePhase.class
+com\jamplifier\zombietag\Util\Placeholders.class
 com\jamplifier\zombietag\listeners\InventoryGuardListener.class
 com\jamplifier\zombietag\commands\AdminCommands.class
 com\jamplifier\zombietag\core\PlayerRegistry.class

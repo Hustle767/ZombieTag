@@ -1,4 +1,3 @@
-// core/GameState.java
 package com.jamplifier.zombietag.core;
 
 import org.bukkit.entity.Player;
@@ -21,6 +20,10 @@ public class GameState {
     private BukkitRunnable gameTimerTask;
     private BukkitRunnable stayStillTask;
 
+    // --- NEW: end timestamps for countdown + game ---
+    private long lobbyCountdownEndsAtMs = 0L;
+    private long gameEndsAtMs = 0L;
+
     public GamePhase getPhase() { return phase; }
     public void setPhase(GamePhase phase) { this.phase = phase; }
 
@@ -41,11 +44,37 @@ public class GameState {
 
     public boolean isRunning() { return phase == GamePhase.RUNNING; }
     public boolean isCountdown() { return phase == GamePhase.COUNTDOWN; }
-    
+
     private long graceEndsAtMs;
     public long getGraceEndsAtMs(){ return graceEndsAtMs; }
     public void setGraceEndsAtMs(long t){ graceEndsAtMs = t; }
 
+    // --- NEW: setters when timers start/cancel ---
+    public void setLobbyCountdownSeconds(int seconds) {
+        this.lobbyCountdownEndsAtMs = seconds > 0
+                ? System.currentTimeMillis() + seconds * 1000L
+                : 0L;
+    }
+    public void clearLobbyCountdownTime() { this.lobbyCountdownEndsAtMs = 0L; }
+
+    public void setGameSecondsLeft(int seconds) {
+        this.gameEndsAtMs = seconds > 0
+                ? System.currentTimeMillis() + seconds * 1000L
+                : 0L;
+    }
+    public void clearGameTime() { this.gameEndsAtMs = 0L; }
+
+    // --- NEW: getters used by PAPI ---
+    public int getRemainingLobbySeconds() {
+        if (lobbyCountdownEndsAtMs <= 0) return 0;
+        long rem = (lobbyCountdownEndsAtMs - System.currentTimeMillis()) / 1000L;
+        return (int)Math.max(0, rem);
+    }
+    public int getRemainingGameSeconds() {
+        if (gameEndsAtMs <= 0) return 0;
+        long rem = (gameEndsAtMs - System.currentTimeMillis()) / 1000L;
+        return (int)Math.max(0, rem);
+    }
 
     public void clearAll() {
         gamePlayers.clear();
@@ -55,6 +84,11 @@ public class GameState {
         if (gameTimerTask != null) gameTimerTask.cancel();
         if (stayStillTask != null) stayStillTask.cancel();
         lobbyCountdownTask = gameTimerTask = stayStillTask = null;
+
+        // --- NEW: reset timeouts on hard clear ---
+        lobbyCountdownEndsAtMs = 0L;
+        gameEndsAtMs = 0L;
+
         phase = GamePhase.LOBBY;
     }
 }

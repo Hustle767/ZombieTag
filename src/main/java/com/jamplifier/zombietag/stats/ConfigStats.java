@@ -1,6 +1,8 @@
 package com.jamplifier.zombietag.stats;
 
 import com.jamplifier.zombietag.MainClass;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
@@ -8,13 +10,36 @@ import org.bukkit.inventory.ItemStack;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class ConfigStats {
     private final MainClass plugin;
     private final File statsDir;
+
+    // Per-player file + yml cache
     private final Map<UUID, FileConfiguration> cache = new HashMap<>();
     private final Map<UUID, File> fileMap = new HashMap<>();
+
+    // ---- Keys commonly used for leaderboards ----
+    public static final String KEY_TAGS = "tags";
+    public static final String KEY_SURVIVALS = "survivals";
+
+    // ---- Leaderboard cache (per key) ----
+    private static final class LbCache {
+        final long expiresAt;
+        final List<Map.Entry<UUID, Integer>> rows; // sorted desc by value
+        final Map<UUID, Integer> valueMap;         // quick lookup for rank calc
+        LbCache(long expiresAt,
+                List<Map.Entry<UUID, Integer>> rows,
+                Map<UUID, Integer> valueMap) {
+            this.expiresAt = expiresAt;
+            this.rows = rows;
+            this.valueMap = valueMap;
+        }
+    }
+    private final Map<String, LbCache> leaderboardCache = new ConcurrentHashMap<>();
+    private long leaderboardTtlMs = 10_000L; // default 10s
 
     public ConfigStats(MainClass plugin) {
         this.plugin = plugin;
@@ -23,6 +48,9 @@ public class ConfigStats {
         this.statsDir = new File(plugin.getDataFolder(), "stats");
         if (!statsDir.exists()) statsDir.mkdirs();
     }
+
+    // Optionally allow changing cache TTL from code/config later
+    public void setLeaderboardTtlMs(long ttlMs) { this.leaderboardTtlMs = Math.max(1000L, ttlMs); }
 
     // -------- internals --------
     private File fileFor(UUID id) {
@@ -41,7 +69,32 @@ public class ConfigStats {
         }
     }
 
-    // -------- API (same signatures you already use) --------
+    private void updateLastKnownName(UUID id) {
+        // store a last known name for leaderboards (works offline)
+        String name = null;
+        OfflinePlayer op = Bukkit.getOfflinePlayer(id);
+        if (op != null) name = op.getName();
+        if (name != null && !name.isEmpty()) {
+            FileConfiguration y = load(id);
+            if (!name.equals(y.getString("lastName"))) {
+                y.set("lastName", name);
+                save(id);
+            }
+        }
+    }
+
+    private String getLastKnownName(UUID id) {
+        String name = load(id).getString("lastName", null);
+        if (name != null && !name.isEmpty()) return name;
+        OfflinePlayer op = Bukkit.getOfflinePlayer(id);
+        return op != null ? op.getName() : id.toString();
+    }
+
+    private void invalidateLeaderboard(String key) {
+        leaderboardCache.remove(key);
+    }
+
+    // -------- API (existing) --------
 
     // Int stats
     public int getInt(UUID id, String key, int def) {
@@ -49,8 +102,11 @@ public class ConfigStats {
     }
 
     public void setInt(UUID id, String key, int value) {
-        load(id).set(key, value);
+        FileConfiguration y = load(id);
+        y.set(key, value);
+        updateLastKnownName(id); // keep name fresh
         save(id);
+        invalidateLeaderboard(key); // values changed => bust cache
     }
 
     public void addInt(UUID id, String key, int amount) {
@@ -72,24 +128,103 @@ public class ConfigStats {
         return load(id).getString("originalHelmet", "none");
     }
 
-    // Leaderboard: scan /stats/*.yml for the key
+    /**
+     * Leaderboard scan: returns a list of (UUID, value) sorted desc.
+     * Kept for backward compatibility. Now uses an in-memory cache.
+     */
     public List<Map.Entry<UUID, Integer>> getLeaderboard(String key) {
+        long now = System.currentTimeMillis();
+        LbCache cached = leaderboardCache.get(key);
+        if (cached != null && cached.expiresAt > now) {
+            return cached.rows; // cached sorted rows
+        }
+
         File[] files = statsDir.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null || files.length == 0) return Collections.emptyList();
+        if (files == null || files.length == 0) {
+            leaderboardCache.put(key, new LbCache(now + leaderboardTtlMs, Collections.emptyList(), Collections.emptyMap()));
+            return Collections.emptyList();
+        }
 
         List<Map.Entry<UUID, Integer>> rows = new ArrayList<>();
+        Map<UUID, Integer> values = new HashMap<>();
+
         for (File f : files) {
             String uuidStr = f.getName().substring(0, f.getName().length() - 4); // trim .yml
             try {
                 UUID id = UUID.fromString(uuidStr);
                 FileConfiguration yml = YamlConfiguration.loadConfiguration(f);
-                rows.add(Map.entry(id, yml.getInt(key, 0)));
+                int val = yml.getInt(key, 0);
+                rows.add(Map.entry(id, val));
+                values.put(id, val);
             } catch (IllegalArgumentException ignore) {
                 // skip non-uuid files
             }
         }
-        return rows.stream()
+
+        rows = rows.stream()
                 .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
                 .collect(Collectors.toList());
+
+        leaderboardCache.put(key, new LbCache(now + leaderboardTtlMs, rows, values));
+        return rows;
+    }
+
+    // -------- New convenience API for placeholders --------
+
+    public int getTags(UUID id) {
+        return getInt(id, KEY_TAGS, 0);
+    }
+
+    public int getSurvivals(UUID id) {
+        return getInt(id, KEY_SURVIVALS, 0);
+    }
+
+    /**
+     * 1-based rank for a key, or -1 if not found.
+     * Ties: higher values share ordering by file iteration; you can refine if needed.
+     */
+    public int getRank(UUID id, String key) {
+        // Try cache first
+        LbCache lc = leaderboardCache.get(key);
+        List<Map.Entry<UUID, Integer>> rows = (lc != null && lc.expiresAt > System.currentTimeMillis())
+                ? lc.rows
+                : getLeaderboard(key); // refreshes cache if needed
+
+        int idx = 0;
+        for (Map.Entry<UUID, Integer> e : rows) {
+            if (e.getKey().equals(id)) return idx + 1; // 1-based
+            idx++;
+        }
+        return -1;
+    }
+
+    public int getTagsRank(UUID id) {
+        return getRank(id, KEY_TAGS);
+    }
+
+    public int getSurvivalsRank(UUID id) {
+        return getRank(id, KEY_SURVIVALS);
+    }
+
+    // Entry shape for top lists with names
+    public static record Entry(String name, UUID id, int value) {}
+
+    public List<Entry> getTopTaggers(int limit) {
+        return toNamedTop(getLeaderboard(KEY_TAGS), limit);
+    }
+
+    public List<Entry> getTopSurvivals(int limit) {
+        return toNamedTop(getLeaderboard(KEY_SURVIVALS), limit);
+    }
+
+    private List<Entry> toNamedTop(List<Map.Entry<UUID, Integer>> raw, int limit) {
+        if (raw.isEmpty()) return Collections.emptyList();
+        int take = Math.max(1, Math.min(limit, raw.size()));
+        List<Entry> out = new ArrayList<>(take);
+        for (int i = 0; i < take; i++) {
+            Map.Entry<UUID, Integer> row = raw.get(i);
+            out.add(new Entry(getLastKnownName(row.getKey()), row.getKey(), row.getValue()));
+        }
+        return out;
     }
 }

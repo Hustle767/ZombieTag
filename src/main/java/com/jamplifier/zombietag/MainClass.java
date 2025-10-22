@@ -47,7 +47,17 @@ public class MainClass extends JavaPlugin {
             root.setExecutor(router);
             root.setTabCompleter(new com.jamplifier.zombietag.Util.CommandsTabCompleter(this));
         }
-
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new com.jamplifier.zombietag.Util.Placeholders(
+                this,
+                getStats(),
+                getGameState() // <- make sure MainClass has this getter
+            ).register();
+        }
+        getServer().getPluginManager().registerEvents(
+        	    new com.jamplifier.zombietag.listeners.LobbyProtectionListener(getGameState()),
+        	    this
+        	);
     }
 
     @Override
