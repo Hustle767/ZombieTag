@@ -118,14 +118,56 @@ public class ConfigStats {
         return String.valueOf(getInt(id, key, Integer.parseInt(def)));
     }
 
-    // Helmet persistence (store material name)
+    // -------- Helmet persistence (new: store full ItemStack with legacy support) --------
+
+    /**
+     * Save the player's original helmet.
+     * - Stores the full ItemStack (with NBT) at "helmets.item".
+     * - Also stores a legacy material string at "originalHelmet" for backward compatibility.
+     */
     public void saveHelmet(UUID id, ItemStack helmet) {
-        load(id).set("originalHelmet", helmet == null ? "none" : helmet.getType().name());
+        FileConfiguration y = load(id);
+        if (helmet == null) {
+            y.set("helmets.item", null);
+            y.set("originalHelmet", "none");
+        } else {
+            // store a clone to avoid external mutation
+            y.set("helmets.item", helmet.clone());
+            y.set("originalHelmet", helmet.getType().name());
+        }
         save(id);
     }
 
+    /**
+     * Load the exact saved helmet item (clone) or null if none stored.
+     */
+    public ItemStack loadHelmet(UUID id) {
+        ItemStack it = load(id).getItemStack("helmets.item");
+        return it == null ? null : it.clone();
+    }
+
+    /**
+     * Legacy helper retained for compatibility.
+     * Returns a material name. If a full item is present, derives the type from it.
+     * Otherwise, falls back to the old "originalHelmet" string field.
+     */
     public String loadHelmetType(UUID id) {
-        return load(id).getString("originalHelmet", "none");
+        FileConfiguration y = load(id);
+        if (y.contains("helmets.item")) {
+            ItemStack it = y.getItemStack("helmets.item");
+            return (it == null) ? "none" : it.getType().name();
+        }
+        return y.getString("originalHelmet", "none");
+    }
+
+    /**
+     * Clear any stored helmet values (both new and legacy).
+     */
+    public void clearHelmet(UUID id) {
+        FileConfiguration y = load(id);
+        y.set("helmets.item", null);
+        y.set("originalHelmet", null);
+        save(id);
     }
 
     /**
@@ -181,7 +223,6 @@ public class ConfigStats {
 
     /**
      * 1-based rank for a key, or -1 if not found.
-     * Ties: higher values share ordering by file iteration; you can refine if needed.
      */
     public int getRank(UUID id, String key) {
         // Try cache first

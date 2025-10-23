@@ -10,17 +10,20 @@ public class Spawns {
     private FileConfiguration cfg;
     private Location lobby;
     private Location game;
+    private Location exit; // NEW
 
     public Spawns(FileConfiguration cfg) {
         this.cfg = cfg;
         this.lobby = load("spawns.lobby");
         this.game  = load("spawns.game");
+        this.exit  = load("spawns.exit"); // NEW
     }
 
     public void reload(FileConfiguration newCfg) {
         if (newCfg != null) this.cfg = newCfg;
         this.lobby = load("spawns.lobby");
         this.game  = load("spawns.game");
+        this.exit  = load("spawns.exit"); // NEW
     }
 
     private Location load(String base) {
@@ -43,4 +46,5 @@ public class Spawns {
 
     public Location lobby() { return lobby == null ? null : lobby.clone(); }
     public Location game()  { return game  == null ? null : game.clone(); }
+    public Location exit()  { return exit  == null ? null : exit.clone(); } // NEW
 }

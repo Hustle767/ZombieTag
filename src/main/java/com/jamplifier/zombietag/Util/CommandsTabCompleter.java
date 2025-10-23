@@ -19,7 +19,8 @@ public class CommandsTabCompleter implements TabCompleter {
     private static final List<String> BASE_ADMIN = Arrays.asList(
             "reload", "setspawn", "teleport", "info"
     );
-    private static final List<String> LOBBY_GAME = Arrays.asList("lobby", "game");
+    // UPDATED: include "exit"
+    private static final List<String> LOBBY_GAME_EXIT = Arrays.asList("lobby", "game", "exit");
     private static final List<String> INFO_SECTIONS = Arrays.asList(
             "all", "lobby", "game", "rewards", "items", "effects", "stay", "staystill", "spawns", "spawn"
     );
@@ -54,9 +55,12 @@ public class CommandsTabCompleter implements TabCompleter {
 
             switch (sub) {
                 case "setspawn":
+                    if (!isAdmin) return Collections.emptyList();
+                    return match(args[1], LOBBY_GAME_EXIT); // include exit
+
                 case "teleport":
-                    if (!isAdmin && !sub.equals("teleport")) return Collections.emptyList();
-                    return match(args[1], LOBBY_GAME);
+                    if (!isAdmin) return Collections.emptyList();
+                    return match(args[1], LOBBY_GAME_EXIT); // include exit
 
                 case "info":
                     if (!isAdmin) return Collections.emptyList();

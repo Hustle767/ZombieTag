@@ -14,6 +14,7 @@ com\jamplifier\zombietag\stats\ConfigStats$LbCache.class
 com\jamplifier\zombietag\Util\CommandsTabCompleter.class
 com\jamplifier\zombietag\model\PlayerState.class
 com\jamplifier\zombietag\core\LobbyService.class
+com\jamplifier\zombietag\listeners\HelmetSlotLockListener.class
 com\jamplifier\zombietag\core\GameService$2.class
 com\jamplifier\zombietag\listeners\SessionListener.class
 com\jamplifier\zombietag\core\EffectsService.class
@@ -24,7 +25,6 @@ com\jamplifier\zombietag\listeners\TagListener.class
 com\jamplifier\zombietag\core\LobbyService$1.class
 com\jamplifier\zombietag\core\GamePhase.class
 com\jamplifier\zombietag\Util\Placeholders.class
-com\jamplifier\zombietag\listeners\InventoryGuardListener.class
 com\jamplifier\zombietag\commands\AdminCommands.class
 com\jamplifier\zombietag\core\PlayerRegistry.class
 com\jamplifier\zombietag\core\GameService$1.class

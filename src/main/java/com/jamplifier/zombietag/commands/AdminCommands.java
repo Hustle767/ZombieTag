@@ -21,7 +21,7 @@ public class AdminCommands {
     private final Settings settings;
     private final Spawns spawns;
 
-    @SuppressWarnings("unused") // kept for parity with constructor call, not used here
+    @SuppressWarnings("unused")
     private final PlayerRegistry registry;
 
     public AdminCommands(MainClass plugin,
@@ -43,16 +43,10 @@ public class AdminCommands {
     public boolean reload(Player p) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
 
-        // 1) Unregister all existing listeners for this plugin
         org.bukkit.event.HandlerList.unregisterAll(plugin);
-
-        // 2) Rebuild config & services (creates fresh Settings/GameState/Registry/etc.)
-        plugin.reloadAll();  // make sure this cancels old timers via gameState.clearAll()
-
-        // 3) Re-register listeners against the fresh instances
+        plugin.reloadAll();
         plugin.registerListeners();
 
-        // 4) Rebind command router + tab-completer to fresh instances
         var root = plugin.getCommand("zombietag");
         if (root != null) {
             var router = new CommandsRouter(
@@ -72,15 +66,13 @@ public class AdminCommands {
         return true;
     }
 
-
-
     public boolean setspawn(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
-        if (args.length != 2) { p.sendMessage("§eUsage: /zombietag setspawn <lobby|game>"); return true; }
+        if (args.length != 2) { p.sendMessage("§eUsage: /zombietag setspawn <lobby|game|exit>"); return true; }
 
         String type = args[1].toLowerCase();
-        if (!type.equals("lobby") && !type.equals("game")) {
-            p.sendMessage("§cInvalid type. Use lobby|game");
+        if (!type.equals("lobby") && !type.equals("game") && !type.equals("exit")) {
+            p.sendMessage("§cInvalid type. Use lobby|game|exit");
             return true;
         }
 
@@ -94,6 +86,7 @@ public class AdminCommands {
         cfg.set(base + ".yaw", loc.getYaw());
         cfg.set(base + ".pitch", loc.getPitch());
 
+        // clear legacy keys if any
         cfg.set("LobbySpawn", null);
         cfg.set("GameSpawn", null);
 
@@ -104,10 +97,9 @@ public class AdminCommands {
         return true;
     }
 
-
     public boolean teleport(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
-        if (args.length != 2) { p.sendMessage("§eUsage: /zombietag teleport <lobby|game>"); return true; }
+        if (args.length != 2) { p.sendMessage("§eUsage: /zombietag teleport <lobby|game|exit>"); return true; }
 
         String which = args[1].toLowerCase();
         switch (which) {
@@ -125,8 +117,15 @@ public class AdminCommands {
                 p.sendMessage("§aTeleported to game spawn.");
                 return true;
             }
+            case "exit": {
+                var es = spawns.exit();
+                if (es == null) { p.sendMessage("§cExit spawn not set or world missing."); return true; }
+                p.teleport(es);
+                p.sendMessage("§aTeleported to exit spawn.");
+                return true;
+            }
             default:
-                p.sendMessage("§cInvalid teleport type! Use 'lobby' or 'game'.");
+                p.sendMessage("§cInvalid teleport type! Use 'lobby', 'game', or 'exit'.");
                 return true;
         }
     }
@@ -136,7 +135,6 @@ public class AdminCommands {
 
         String section = (args.length >= 2) ? args[1].toLowerCase() : "all";
 
-        // helpers
         java.util.function.Function<Boolean,String> yn = b -> b ? "§aON" : "§cOFF";
         java.util.function.Function<Integer,String> secs = v -> v + "s";
         java.util.function.Function<org.bukkit.Location,String> fmtLoc = loc -> {
@@ -145,7 +143,6 @@ public class AdminCommands {
                     loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
         };
 
-        // pull from your Settings (matches Settings.java exactly)
         int     playerNeeded    = settings.playerNeeded;
         int     maxPlayers      = settings.maxPlayers;
         int     lobbyCountdown  = settings.lobbyCountdownSeconds;
@@ -169,10 +166,10 @@ public class AdminCommands {
 
         org.bukkit.Location lobbySpawn = spawns.lobby();
         org.bukkit.Location gameSpawn  = spawns.game();
+        org.bukkit.Location exitSpawn  = spawns.exit(); // NEW
 
         p.sendMessage("§8§m--------------------§r §aZombieTag §7Info §8§m--------------------");
 
-        // LOBBY
         if (section.equals("all") || section.equals("lobby")) {
             p.sendMessage("§bLobby");
             p.sendMessage("  §7Needed: §f" + playerNeeded + "  §7Max: §f" + maxPlayers);
@@ -181,53 +178,46 @@ public class AdminCommands {
             p.sendMessage("  §7Queue during game: " + yn.apply(settings.queueDuringGame));
         }
 
-        // GAME
         if (section.equals("all") || section.equals("game")) {
             p.sendMessage("§bGame");
             p.sendMessage("  §7Length: §f" + secs.apply(gameLen) + "  §7Grace: §f" + secs.apply(graceSeconds));
             p.sendMessage("  §7Announce length: " + yn.apply(announceLen));
         }
 
-        // REWARDS
         if (section.equals("all") || section.equals("rewards")) {
             p.sendMessage("§bRewards (Survivors)");
             p.sendMessage("  §7Enabled: " + yn.apply(rewardEnabled));
             p.sendMessage("  §7Command: §f" + (rewardCmd == null ? "§7none" : rewardCmd));
         }
 
-        // ITEMS
         if (section.equals("all") || section.equals("items")) {
             p.sendMessage("§bItems");
             p.sendMessage("  §7Zombie helmet: §f" + (helmetItem == null ? "§7default" : helmetItem));
         }
 
-        // EFFECTS
         if (section.equals("all") || section.equals("effects")) {
             p.sendMessage("§bEffects at Start");
             p.sendMessage("  §7Blindness: §f" + secs.apply(blindSec) + "  §7Night Vision: §f" + secs.apply(nightVisSec));
         }
 
-        // STAY STILL
         if (section.equals("all") || section.equals("stay") || section.equals("staystill")) {
             p.sendMessage("§bStay-Still");
             p.sendMessage("  §7Enabled: " + yn.apply(stayStillOn) + "  §7Time limit: §f" + secs.apply(stayStillSec));
             p.sendMessage("  §7Message: §f" + (stayStillMsg == null ? "§7default" : stayStillMsg));
         }
 
-        // SPAWNS
         if (section.equals("all") || section.equals("spawns") || section.equals("spawn")) {
             p.sendMessage("§bSpawns");
             p.sendMessage("  §7Lobby: " + fmtLoc.apply(lobbySpawn));
             p.sendMessage("  §7Game:  " + fmtLoc.apply(gameSpawn));
+            p.sendMessage("  §7Exit:  " + fmtLoc.apply(exitSpawn)); // NEW
         }
 
         p.sendMessage("§8§m---------------------------------------------------------");
         return true;
     }
 
-
-    // ---- helpers ----
-
+    // ---- helpers (unchanged) ----
     private Location readSpawnFromConfig(String basePath) {
         FileConfiguration cfg = plugin.getConfig();
 
@@ -245,5 +235,4 @@ public class AdminCommands {
 
         return new Location(w, x, y, z, yaw, pitch);
     }
-
 }

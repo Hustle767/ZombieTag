@@ -54,43 +54,53 @@ public class LobbyProtectionListener implements Listener {
 
     /** Should this player be protected right now (phase OR explicitly in lobby list)? */
     private boolean isLobbyProtected(Player p) {
-        return isLobbyPhase() || isInLobbyList(p);
+        // Only protect if we're in a lobby-like phase *and* the player is in the lobby list
+        return isLobbyPhase() && isInLobbyList(p);
     }
 
     // ---------- PvP-only blocking (melee + projectiles) ----------
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPvP(EntityDamageByEntityEvent e) {
-        if (!blockPvp) return;
-        if (!(e.getEntity() instanceof Player victim)) return;
-
-        Player damagerPlayer = null;
-        if (e.getDamager() instanceof Player dp) {
-            damagerPlayer = dp;
-        } else if (e.getDamager() instanceof Projectile proj) {
-            ProjectileSource src = proj.getShooter();
-            if (src instanceof Player dp) damagerPlayer = dp;
-        }
-
-        if (damagerPlayer == null) return;
-
-        // Cancel if either is lobby-protected (phase or in lobby list)
-        if (isLobbyProtected(victim) || isLobbyProtected(damagerPlayer)) {
-            e.setCancelled(true);
-        }
-    }
-
-    // ---------- All damage blocking (fall, fire, lava, void, etc.) ----------
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onAnyDamage(EntityDamageEvent e) {
         if (!blockAllDamage) return;
         if (!(e.getEntity() instanceof Player p)) return;
 
+        // Lobby protection only for queued players
         if (isLobbyProtected(p)) {
+            e.setCancelled(true);
+            return;
+        }
+
+        // Optional: protect all players during grace while RUNNING
+        if (state.getPhase() == GamePhase.RUNNING &&
+            System.currentTimeMillis() < state.getGraceEndsAtMs()) {
             e.setCancelled(true);
         }
     }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPvP(EntityDamageByEntityEvent e) {
+        if (!blockPvp) return;
+        if (!(e.getEntity() instanceof Player victim)) return;
+
+        Player damager = null;
+        if (e.getDamager() instanceof Player dp) damager = dp;
+        else if (e.getDamager() instanceof Projectile proj && proj.getShooter() instanceof Player dp) damager = dp;
+        if (damager == null) return;
+
+        // Block PvP in lobby only for queued players
+        if (isLobbyProtected(victim) || isLobbyProtected(damager)) {
+            e.setCancelled(true);
+            return;
+        }
+
+        // Optional: block PvP during grace while RUNNING
+        if (state.getPhase() == GamePhase.RUNNING &&
+            System.currentTimeMillis() < state.getGraceEndsAtMs()) {
+            e.setCancelled(true);
+        }
+    }
+
 
     // ---------- Hunger drain blocking ----------
 

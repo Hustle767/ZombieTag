@@ -70,8 +70,8 @@ public class MainClass extends JavaPlugin {
     public void registerListeners() {
         getServer().getPluginManager().registerEvents(
             new com.jamplifier.zombietag.listeners.TagListener(this, gameState, effectsService, helmetService, gameService, registry, stats), this);
-        getServer().getPluginManager().registerEvents(
-            new com.jamplifier.zombietag.listeners.InventoryGuardListener(settings, registry), this);
+       // getServer().getPluginManager().registerEvents(
+       //     new com.jamplifier.zombietag.listeners.HelmetSlotLockListener(gameState, registry, settings), this);
         getServer().getPluginManager().registerEvents(
             new com.jamplifier.zombietag.listeners.WorldGuardListener(registry, gameState), this);
         getServer().getPluginManager().registerEvents(

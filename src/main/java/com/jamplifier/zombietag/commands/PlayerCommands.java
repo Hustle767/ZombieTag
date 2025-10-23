@@ -111,8 +111,11 @@ public class PlayerCommands {
             return true;
         }
 
-        // Let LobbyService handle the removal + broadcast/message
+        // Remove from lobby first
         lobby.leaveLobby(p);
+
+        // Teleport to exit (fallbacks: lobby world spawn → current world spawn)
+        teleportToExit(p);
         return true;
     }
 
@@ -178,5 +181,23 @@ public class PlayerCommands {
         } else {
             plugin.getLang().send(p, "lobby.missing_lobby_spawn");
         }
+    }
+    private void teleportToExit(Player p) {
+        Location es = spawns.exit();
+        if (es != null) {
+            p.teleport(es);
+            plugin.getLang().send(p, "lobby.exit_teleported"); // add to lang if you want
+            return;
+        }
+        // fallback 1: lobby world spawn if lobby set
+        Location ls = spawns.lobby();
+        if (ls != null && ls.getWorld() != null) {
+            p.teleport(ls.getWorld().getSpawnLocation());
+            p.sendMessage("§7No Exit spawn set; sent to lobby world spawn.");
+            return;
+        }
+        // fallback 2: current world spawn
+        p.teleport(p.getWorld().getSpawnLocation());
+        p.sendMessage("§7No Exit spawn set; sent to world spawn.");
     }
 }
