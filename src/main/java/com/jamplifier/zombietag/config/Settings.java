@@ -44,6 +44,9 @@ public class Settings {
     // command lockdown
     public List<String> commandWhitelist;
 
+    // per-player console commands to run at game start
+    public List<String> startCommands;
+
     public Settings(FileConfiguration cfg) {
         reload(cfg);
     }
@@ -73,8 +76,14 @@ public class Settings {
         this.headItemType          = cfg.getString("items.zombie_helmet", "ZOMBIE_HEAD");
 
         // messages
-        this.msgZombieWin          = cfg.getString("messages.zombie_win", "§cZombies win! All players have been infected.");
-        this.msgSurvivorWin        = cfg.getString("messages.survivor_win", "§aSurvivors win! You escaped the zombie apocalypse!");
+        this.msgZombieWin          = cfg.getString(
+                "messages.zombie_win",
+                "§cZombies win! All players have been infected."
+        );
+        this.msgSurvivorWin        = cfg.getString(
+                "messages.survivor_win",
+                "§aSurvivors win! You escaped the zombie apocalypse!"
+        );
 
         // effects
         this.blindnessSeconds      = cfg.getInt("effects.blindness_seconds", 10);
@@ -88,7 +97,10 @@ public class Settings {
                 "§cYou stayed still for too long and turned into a zombie!"
         );
 
-        // command lockdown
+        // command lockdown (which commands players are allowed to run mid-round)
         this.commandWhitelist      = cfg.getStringList("commands.whitelist");
+
+        // console commands to run at start of a round for each player
+        this.startCommands         = cfg.getStringList("start_commands");
     }
 }

@@ -62,4 +62,9 @@ commands:
     - "/zt"
     - "/msg"
     - "/tell"    
+	
+start_commands:
+  - "undisguise %player%"
+  - "cosmetics disable %player%"
+
     
