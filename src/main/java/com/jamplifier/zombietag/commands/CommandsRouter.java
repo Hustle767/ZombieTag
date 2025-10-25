@@ -40,33 +40,37 @@ public class CommandsRouter implements CommandExecutor {
 
         String sub = args[0].toLowerCase();
         switch (sub) {
-            // player
-            case "join": {
-                // 🔒 Block joining while a game is active or ending
-                GamePhase phase = plugin.getGameState().getPhase();
-                if ((phase == GamePhase.RUNNING || phase == GamePhase.ENDING) && !plugin.getSettings().queueDuringGame) {
-                    p.sendMessage("§cA game is currently running. Please wait for the next round.");
-                    return true;
-                }
-                // also prevent if they're already in the current game
-                if (plugin.getGameState().getGamePlayers().contains(p)) {
-                    p.sendMessage("§eYou’re already in an active round!");
-                    return true;
-                }
-                return playerCmds.join(p);
-            }
-            case "leave":  return playerCmds.leave(p);
-            case "top":    return playerCmds.top(p);
-            case "stats":  return playerCmds.stats(p, args);
-            // admin
-            case "reload":   return adminCmds.reload(p);
-            case "setspawn": return adminCmds.setspawn(p, args);
-            case "teleport": return adminCmds.teleport(p, args);
-            case "info":     return adminCmds.info(p, args);
-
-            default:
-                p.sendMessage("§eInvalid command. Use /zombietag help.");
+        // player
+        case "join": {
+            // 🔒 Block joining while a game is active or ending
+            GamePhase phase = plugin.getGameState().getPhase();
+            if ((phase == GamePhase.RUNNING || phase == GamePhase.ENDING) && !plugin.getSettings().queueDuringGame) {
+                p.sendMessage("§cA game is currently running. Please wait for the next round.");
                 return true;
+            }
+            // also prevent if they're already in the current game
+            if (plugin.getGameState().getGamePlayers().contains(p)) {
+                p.sendMessage("§eYou’re already in an active round!");
+                return true;
+            }
+            return playerCmds.join(p);
         }
+
+        case "leave":    return playerCmds.leave(p);
+        case "top":      return playerCmds.top(p);
+        case "stats":    return playerCmds.stats(p, args);
+
+        // admin
+        case "reload":   return adminCmds.reload(p);
+        case "setspawn": return adminCmds.setspawn(p, args);
+        case "teleport": return adminCmds.teleport(p, args);
+        case "info":     return adminCmds.info(p, args);
+        case "end":      return adminCmds.end(p);   // <-- NEW
+
+        default:
+            p.sendMessage("§eInvalid command. Use /zombietag help.");
+            return true;
     }
+
+}
 }

@@ -216,6 +216,27 @@ public class AdminCommands {
         p.sendMessage("§8§m---------------------------------------------------------");
         return true;
     }
+    public boolean end(Player p) {
+        if (!p.hasPermission("zombietag.admin")) {
+            p.sendMessage("§cNo permission.");
+            return true;
+        }
+
+        // If there's no active game, just tell them
+        if (!plugin.getGameState().isRunning()) {
+            p.sendMessage("§eThere is no active Zombie Tag round.");
+            return true;
+        }
+
+        // Force end the round immediately.
+        // We pass 'false' for forceToLobby because your existing endGame(false)
+        // already teleports players back to lobby/exit logic and resets state.
+        game.endGame(false);
+
+        p.sendMessage("§aZombie Tag round has been force-ended.");
+        return true;
+    }
+
 
     // ---- helpers (unchanged) ----
     private Location readSpawnFromConfig(String basePath) {
