@@ -61,10 +61,9 @@ commands:
     - "/zombietag"
     - "/zt"
     - "/msg"
-    - "/tell"    
-	
+    - "/tell"
+    - "/r"
+
 start_commands:
   - "undisguise %player%"
   - "cosmetics disable %player%"
-
-    

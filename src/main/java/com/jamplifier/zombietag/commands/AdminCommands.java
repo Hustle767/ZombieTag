@@ -3,6 +3,7 @@ package com.jamplifier.zombietag.commands;
 import com.jamplifier.zombietag.MainClass;
 import com.jamplifier.zombietag.config.Settings;
 import com.jamplifier.zombietag.config.Spawns;
+import com.jamplifier.zombietag.core.GamePhase;
 import com.jamplifier.zombietag.core.GameService;
 import com.jamplifier.zombietag.core.LobbyService;
 import com.jamplifier.zombietag.core.PlayerRegistry;
@@ -41,9 +42,18 @@ public class AdminCommands {
     }
 
     public boolean reload(Player p) {
-        if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
+        if (!p.hasPermission("zombietag.admin")) {
+            p.sendMessage("§cNo permission.");
+            return true;
+        }
 
+        // 1. Safely clean up current round / lobby BEFORE tearing down services.
+        safeCleanupBeforeReload(p);
+
+        // 2. Unregister all listeners from the *old* plugin state.
         org.bukkit.event.HandlerList.unregisterAll(plugin);
+
+        // 3. Rebuild config, services, listeners, commands.
         plugin.reloadAll();
         plugin.registerListeners();
 
@@ -62,9 +72,92 @@ public class AdminCommands {
             root.setTabCompleter(new com.jamplifier.zombietag.Util.CommandsTabCompleter(plugin));
         }
 
-        p.sendMessage("§aZombieTag reloaded (listeners & commands rebound).");
+        p.sendMessage("§aZombieTag reloaded: game state reset, listeners rebound.");
         return true;
     }
+
+    /**
+     * Gracefully dump everyone out of the current game/lobby
+     * so we don't leave dangling Player refs or timers
+     * when we rebuild GameState/Services.
+     */
+    private void safeCleanupBeforeReload(Player executor) {
+        var state = plugin.getGameState();
+
+        // A. If a game is currently running, end it cleanly using existing logic.
+        if (state.isRunning() || state.getPhase() == GamePhase.ENDING) {
+            executor.sendMessage("§7[ZombieTag] §eEnding active round before reload...");
+            // endGame(false) handles:
+            // - rewards/announce
+            // - teleport to lobby spawn
+            // - restoring helmets
+            // - clearing timers
+            // - setting phase back to LOBBY
+            plugin.getGameService().endGame(false);
+        }
+
+        // B. Now kick anyone still in the lobby queue out to the exit spawn
+        //    and let them know what's going on.
+        var lobbyPlayers = new java.util.ArrayList<>(state.getLobbyPlayers());
+        if (!lobbyPlayers.isEmpty()) {
+            executor.sendMessage("§7[ZombieTag] §eClearing lobby queue (" + lobbyPlayers.size() + " players)...");
+        }
+
+        for (org.bukkit.entity.Player lp : lobbyPlayers) {
+            if (lp == null || !lp.isOnline()) continue;
+
+            // tell them first so it doesn't look like a random teleport
+            lp.sendMessage("§eZombieTag reloading. You have been removed from the queue.");
+
+            // teleport them to exit spawn (or fallback spawns) similar to PlayerCommands.teleportToExit()
+            org.bukkit.Location es = plugin.getSpawns().exit();
+            if (es != null) {
+                lp.teleport(es);
+            } else {
+                org.bukkit.Location ls = plugin.getSpawns().lobby();
+                if (ls != null && ls.getWorld() != null) {
+                    lp.teleport(ls.getWorld().getSpawnLocation());
+                } else {
+                    lp.teleport(lp.getWorld().getSpawnLocation());
+                }
+            }
+        }
+
+        // C. Wipe lobby/game lists + flags in registry so nobody is still "ingame"
+        // We'll mark everyone not ingame and not zombie to avoid stuck state.
+        for (java.util.UUID id : new java.util.ArrayList<>(plugin.getRegistry().all()
+                .stream()
+                .map(ps -> ps.getUuid())
+                .toList())) {
+            var ps = plugin.getRegistry().get(id);
+            if (ps != null) {
+                ps.setIngame(false);
+                ps.setZombie(false);
+            }
+        }
+
+        state.getLobbyPlayers().clear();
+        state.getGamePlayers().clear();
+        state.setInitialZombie(null);
+
+        // Kill any countdown / timers just in case
+        if (state.getLobbyCountdownTask() != null) {
+            try { state.getLobbyCountdownTask().cancel(); } catch (Throwable ignored) {}
+            state.setLobbyCountdownTask(null);
+        }
+        if (state.getGameTimerTask() != null) {
+            try { state.getGameTimerTask().cancel(); } catch (Throwable ignored) {}
+            state.setGameTimerTask(null);
+        }
+        if (state.getStayStillTask() != null) {
+            try { state.getStayStillTask().cancel(); } catch (Throwable ignored) {}
+            state.setStayStillTask(null);
+        }
+
+        // Back to lobby phase so new GameState after reload starts neutral.
+        state.setPhase(GamePhase.LOBBY);
+    }
+
 
     public boolean setspawn(Player p, String[] args) {
         if (!p.hasPermission("zombietag.admin")) { p.sendMessage("§cNo permission."); return true; }
