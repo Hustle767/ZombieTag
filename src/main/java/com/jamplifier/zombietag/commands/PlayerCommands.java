@@ -186,9 +186,10 @@ public class PlayerCommands {
         Location es = spawns.exit();
         if (es != null) {
             p.teleport(es);
-            plugin.getLang().send(p, "lobby.exit_teleported"); // add to lang if you want
+            // no message here anymore
             return;
         }
+
         // fallback 1: lobby world spawn if lobby set
         Location ls = spawns.lobby();
         if (ls != null && ls.getWorld() != null) {
@@ -196,6 +197,7 @@ public class PlayerCommands {
             p.sendMessage("§7No Exit spawn set; sent to lobby world spawn.");
             return;
         }
+
         // fallback 2: current world spawn
         p.teleport(p.getWorld().getSpawnLocation());
         p.sendMessage("§7No Exit spawn set; sent to world spawn.");
