@@ -50,3 +50,9 @@ stay_still:
   enabled: true
   time_limit_seconds: 10
   message: "§cYou stayed still for too long and turned into a zombie!"
+
+restrictions:
+  block_enderpearls: true
+  block_chorus_fruit: true
+  block_elytra: true
+    

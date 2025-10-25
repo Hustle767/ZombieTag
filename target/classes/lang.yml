@@ -45,6 +45,10 @@ game:
 end:
   queue_hint: "&7Game over! Use &a/zombietag join&7 to queue again."
 
+restrictions:
+  blocked: "&cYou can't do that in Zombie Tag!"
+    
+
 commands:
   help:
     header_admin: "&eZombieTag Commands:"

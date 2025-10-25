@@ -1,4 +1,5 @@
 com\jamplifier\zombietag\stats\ConfigStats$Entry.class
+com\jamplifier\zombietag\listeners\ElytraListener.class
 com\jamplifier\zombietag\core\GameState.class
 com\jamplifier\zombietag\core\StayStillService.class
 com\jamplifier\zombietag\stats\ConfigStats.class
@@ -14,6 +15,7 @@ com\jamplifier\zombietag\stats\ConfigStats$LbCache.class
 com\jamplifier\zombietag\Util\CommandsTabCompleter.class
 com\jamplifier\zombietag\model\PlayerState.class
 com\jamplifier\zombietag\core\LobbyService.class
+com\jamplifier\zombietag\listeners\PearlAndChorusListener.class
 com\jamplifier\zombietag\listeners\HelmetSlotLockListener.class
 com\jamplifier\zombietag\core\GameService$2.class
 com\jamplifier\zombietag\listeners\SessionListener.class

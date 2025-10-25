@@ -2,6 +2,7 @@ F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\Eff
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\commands\PlayerCommands.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\config\Settings.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\Util\Lang.java
+F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\ElytraListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\StayStillService.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\model\PlayerState.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\GameService.java
@@ -11,6 +12,7 @@ F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\Gam
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\SessionListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\RewardService.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\HelmetService.java
+F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\PearlAndChorusListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\stats\ConfigStats.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\TagListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\commands\AdminCommands.java
