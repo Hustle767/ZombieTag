@@ -15,6 +15,7 @@ F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\core\Hel
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\PearlAndChorusListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\stats\ConfigStats.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\TagListener.java
+F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\CommandBlockListener.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\commands\AdminCommands.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\commands\CommandsRouter.java
 F:\Development\eclipse\ZombieTag\src\main\java\com\jamplifier\zombietag\listeners\LobbyProtectionListener.java

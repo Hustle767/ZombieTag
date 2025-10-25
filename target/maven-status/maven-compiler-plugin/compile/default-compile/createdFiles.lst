@@ -10,6 +10,7 @@ com\jamplifier\zombietag\Util\Placeholders$CacheItem.class
 com\jamplifier\zombietag\config\Settings.class
 com\jamplifier\zombietag\listeners\LobbyProtectionListener.class
 com\jamplifier\zombietag\commands\PlayerCommands.class
+com\jamplifier\zombietag\listeners\CommandBlockListener.class
 com\jamplifier\zombietag\MainClass.class
 com\jamplifier\zombietag\stats\ConfigStats$LbCache.class
 com\jamplifier\zombietag\Util\CommandsTabCompleter.class

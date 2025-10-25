@@ -152,6 +152,17 @@ public class MainClass extends JavaPlugin {
             this
         );
         */
+     // Command restriction during active game
+        getServer().getPluginManager().registerEvents(
+            new CommandBlockListener(
+                this,
+                gameState,
+                registry,
+                settings
+            ),
+            this
+        );
+
     }
 
     /**

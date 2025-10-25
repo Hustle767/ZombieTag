@@ -55,4 +55,11 @@ restrictions:
   block_enderpearls: true
   block_chorus_fruit: true
   block_elytra: true
+
+commands:
+  whitelist:
+    - "/zombietag"
+    - "/zt"
+    - "/msg"
+    - "/tell"    
     

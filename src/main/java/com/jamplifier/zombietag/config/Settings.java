@@ -1,7 +1,8 @@
-// config/Settings.java
 package com.jamplifier.zombietag.config;
 
 import org.bukkit.configuration.file.FileConfiguration;
+
+import java.util.List;
 
 public class Settings {
 
@@ -40,6 +41,9 @@ public class Settings {
     public int  stayStillSeconds;
     public String stayStillMessage;
 
+    // command lockdown
+    public List<String> commandWhitelist;
+
     public Settings(FileConfiguration cfg) {
         reload(cfg);
     }
@@ -54,7 +58,7 @@ public class Settings {
         this.maxPlayers            = cfg.getInt("lobby.max_players", 20);
         this.lobbyCountdownSeconds = cfg.getInt("lobby.countdown_seconds", 10);
         this.autoRejoin            = cfg.getBoolean("lobby.auto_rejoin", true);
-        this.queueDuringGame = cfg.getBoolean("lobby.queue_during_game", true);
+        this.queueDuringGame       = cfg.getBoolean("lobby.queue_during_game", true);
 
         // game
         this.gameLengthSeconds     = cfg.getInt("game.length_seconds", 300);
@@ -79,7 +83,12 @@ public class Settings {
         // stay still
         this.stayStillEnabled      = cfg.getBoolean("stay_still.enabled", true);
         this.stayStillSeconds      = cfg.getInt("stay_still.time_limit_seconds", 30);
-        this.stayStillMessage      = cfg.getString("stay_still.message",
-                "§cYou stayed still for too long and turned into a zombie!");
+        this.stayStillMessage      = cfg.getString(
+                "stay_still.message",
+                "§cYou stayed still for too long and turned into a zombie!"
+        );
+
+        // command lockdown
+        this.commandWhitelist      = cfg.getStringList("commands.whitelist");
     }
 }
