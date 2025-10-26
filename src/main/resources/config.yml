@@ -2,30 +2,31 @@
 # Keep "version" so you can migrate safely later.
 version: 2
 
-lobby:
+# Lobby Settings
+lobby:	
   player_needed: 2              # min players to start
   max_players: 20               # cap in lobby
   countdown_seconds: 10         # countdown once threshold met
   auto_rejoin: true             # queue players who join during an active round
   queue_during_game: true
 
+# Game Settings
 game:
   length_seconds: 300           # total round time
   grace_seconds: 10             # zombies can’t tag during this window
   announce_length: true         # say game length at start
 
+# Reward commands to execute
 rewards:
   survivors:
     enabled: true
-    command: "give {player} golden_apple 2"  # runs as console
+    command: "give {player} golden_apple 2" 
 
+	# item type placed on zombies’ heads
 items:
-  zombie_helmet: ZOMBIE_HEAD    # item type placed on zombies’ heads
+  zombie_helmet: ZOMBIE_HEAD
 
-messages:
-  zombie_win: "§cZombies win! All players have been infected."
-  survivor_win: "§aSurvivors win! You escaped the zombie apocalypse!"
-
+# Spawn points set with  /zt setspawn
 spawns:
   lobby:
     world: world
@@ -46,16 +47,19 @@ effects:
   blindness_seconds: 10
   night_vision_seconds: 10
 
+# If you stay still for to long during game you will turn into a zombie  
 stay_still:
   enabled: true
   time_limit_seconds: 10
   message: "§cYou stayed still for too long and turned into a zombie!"
 
+# Block certain actions during game  
 restrictions:
   block_enderpearls: true
   block_chorus_fruit: true
   block_elytra: true
 
+# Commands that should be allowed during game  
 commands:
   whitelist:
     - "/zombietag"
@@ -64,6 +68,7 @@ commands:
     - "/tell"
     - "/r"
 
+# Commands that should be executed on players before game
 start_commands:
   - "undisguise %player%"
   - "cosmetics disable %player%"

@@ -57,8 +57,8 @@ commands:
     leave: "  &7/zombietag leave"
     top: "  &7/zombietag top"
     stats: "  &7/zombietag stats [player]"
-    setspawn: "  &7/zombietag setspawn <lobby|game> &8(admin)"
-    teleport: "  &7/zombietag teleport <lobby|game> &8(admin)"
+    setspawn: "  &7/zombietag setspawn <lobby|game|exit> &8(admin)"
+    teleport: "  &7/zombietag teleport <lobby|game|exit> &8(admin)"
     reload: "  &7/zombietag reload &8(admin)"
   top:
     header: "&6--- Zombie Tag Leaderboard ---"
